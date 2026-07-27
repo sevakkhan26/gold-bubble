@@ -602,8 +602,13 @@ def build_model(
             "shemsh24PerKg": tgju_dom.get("shemsh24PerKg"),
         }
 
-    # Ensure navasan shows something when only proxy/melt exists
-    if "navasan" not in exchanges and (usd or gold18 or gold24 or aed):
+    # Only fill empty "navasan" with aggregate when no free-market box exists yet
+    # (avoid duplicating TGJU data into both بن‌بست and نوسان).
+    if (
+        "navasan" not in exchanges
+        and "bonbast" not in exchanges
+        and (usd or gold18 or gold24 or aed)
+    ):
         exchanges["navasan"] = {
             "usd": usd,
             "aed": aed,
