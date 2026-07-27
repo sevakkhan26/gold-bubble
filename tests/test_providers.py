@@ -23,6 +23,7 @@ from app.providers import (  # noqa: E402
     map_tetherland,
     map_tgju_table,
     map_wallex_depth,
+    parse_navasan_initrates,
 )
 
 
@@ -100,14 +101,46 @@ def test_map_navasan():
     assert m["shemsh24PerKg"]["sell"] == round((6250000 / 0.75) * GRAMS_PER_KG)
 
 
+def test_parse_navasan_initrates():
+    text = (
+        'var lastrates = {"harat_naghdi_buy":{"value":"187,900","date":1},'
+        '"harat_naghdi_sell":{"value":"188,300","date":1},'
+        '"18ayar":{"value":"18,414,980","date":1},'
+        '"aed_sell":{"value":"52,200","date":1},'
+        '"usd_usdt":{"value":"190,500","date":1}};'
+        'var yesterday = {"usd":{"value":1}};'
+    )
+    rates = parse_navasan_initrates(text)
+    m = map_navasan(rates)
+    assert m["usd"]["buy"] == 187900 and m["usd"]["sell"] == 188300
+    assert m["aed"]["sell"] == 52200
+    assert m["gold18PerKg"]["sell"] == 18414980 * GRAMS_PER_KG
+    assert m["usdt"]["sell"] == 190500
+
+
 def test_map_gold_api_and_goldprice():
     assert map_gold_api({"price": 4072.5}) == 4072.5
     assert map_goldprice_org({"items": [{"curr": "USD", "xauPrice": 4070.2}]}) == 4070.2
 
 
+def _fake_text(url, timeout=8.0, retries=1):
+    u = str(url)
+    if "navasan.net" in u or "initrates" in u:
+        return (
+            'var lastrates = {"harat_naghdi_buy":{"value":"187900"},'
+            '"harat_naghdi_sell":{"value":"188300"},'
+            '"aed_sell":{"value":"52200"},'
+            '"18ayar":{"value":"18414980"},'
+            '"usd_usdt":{"value":"190500"}};'
+            "var yesterday = {};",
+            5,
+        )
+    return ("{}", 5)
+
+
 def _fake_fetch(url, timeout=8.0, retries=1):
     u = str(url)
-    if "navasan" in u:
+    if "navasan" in u and "navasan.net" not in u:
         return (
             {
                 "harat_naghdi_buy": {"value": "92000"},
@@ -167,8 +200,10 @@ def _fake_fetch(url, timeout=8.0, retries=1):
 
 def test_build_model_multi_exchange_usdt(monkeypatch):
     monkeypatch.setattr(providers, "fetch_json", _fake_fetch)
+    monkeypatch.setattr(providers, "fetch_text", _fake_text)
     out = build_model(navasan_key="TESTKEY")
     m = out["model"]
+    # API key wins over web for نوسان box
     assert m["exchanges"]["navasan"]["usd"]["sell"] == 92300
     assert m["exchanges"]["nobitex"]["usdt"]["sell"] == 92300
     assert m["exchanges"]["wallex"]["usdt"]["sell"] == 92300
@@ -185,25 +220,32 @@ def test_build_model_multi_exchange_usdt(monkeypatch):
     assert m["exchanges"]["nobitex"]["gold18PerKg"]["sell"] == 6250000 * GRAMS_PER_KG
     assert m["exchanges"]["nobitex"]["own"]["gold"] is False
     assert m["exchanges"]["nobitex"]["own"]["usdt"] is True
-    # TGJU also available for bonbast when navasan present
+    # TGJU fills بن‌بست alongside Navasan
+    assert m["exchanges"]["bonbast"]["usd"]["sell"] == 92000
     assert m["ounceUsd"] == 4072
     assert m["estimated"]["usd"] is False
 
 
-def test_build_model_tgju_without_navasan(monkeypatch):
+def test_build_model_navasan_web_without_key(monkeypatch):
     monkeypatch.setattr(providers, "fetch_json", _fake_fetch)
+    monkeypatch.setattr(providers, "fetch_text", _fake_text)
     out = build_model(navasan_key="")
     m = out["model"]
+    # No API key → free initrates.php still fills نوسان
+    assert m["exchanges"]["navasan"]["usd"]["sell"] == 188300
+    assert m["exchanges"]["navasan"]["aed"]["sell"] == 52200
+    assert m["exchanges"]["navasan"]["usdt"]["sell"] == 190500
     assert m["exchanges"]["bonbast"]["usd"]["sell"] == 92000  # TGJU rial/10
     assert m["exchanges"]["bonbast"]["aed"]["sell"] == 25000
-    assert m["estimated"]["usd"] is False  # TGJU is live free-market, not USDT proxy
-    # USDT venues get free-market AED/gold attached
-    assert m["exchanges"]["wallex"]["aed"]["sell"] == 25000
+    assert m["estimated"]["usd"] is False
+    # USDT venues get free-market AED/gold attached (from Navasan aggregate)
+    assert m["exchanges"]["wallex"]["aed"]["sell"] == 52200
     assert m["exchanges"]["wallex"]["own"]["aed"] is False
 
 
 def test_history_store_and_api(monkeypatch):
     monkeypatch.setattr(providers, "fetch_json", _fake_fetch)
+    monkeypatch.setattr(providers, "fetch_text", _fake_text)
     from fastapi.testclient import TestClient
     from app.main import app
 

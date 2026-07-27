@@ -27,10 +27,14 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def fetch_json(url: str, timeout: float = 15.0, retries: int = 2) -> tuple[Any, int]:
-    """GET JSON with timeout + retry. Honours HTTP(S)_PROXY via trust_env."""
+def _http_get(url: str, timeout: float = 15.0, retries: int = 2) -> tuple[str, int]:
+    """GET raw text with timeout + retry. Honours HTTP(S)_PROXY via trust_env."""
     last: Exception | None = None
-    headers = {"User-Agent": _UA, "Accept": "application/json,text/plain,*/*"}
+    headers = {
+        "User-Agent": _UA,
+        "Accept": "application/json,text/javascript,text/plain,*/*",
+        "Referer": "https://www.navasan.net/",
+    }
     # Generous timeouts — IR edges + mtproxier are often slow under parallel load.
     to = httpx.Timeout(timeout, connect=10.0)
     for attempt in range(retries + 1):
@@ -39,18 +43,27 @@ def fetch_json(url: str, timeout: float = 15.0, retries: int = 2) -> tuple[Any, 
             with httpx.Client(timeout=to, trust_env=True, headers=headers) as client:
                 r = client.get(url)
             r.raise_for_status()
-            try:
-                return r.json(), int((time.time() - started) * 1000)
-            except Exception:
-                import json as _json
-
-                return _json.loads(r.text), int((time.time() - started) * 1000)
+            return r.text, int((time.time() - started) * 1000)
         except Exception as e:  # noqa: BLE001
             last = e
             if attempt < retries:
                 time.sleep(0.4 * (attempt + 1))
     assert last is not None
     raise last
+
+
+def fetch_json(url: str, timeout: float = 15.0, retries: int = 2) -> tuple[Any, int]:
+    """GET JSON with timeout + retry. Honours HTTP(S)_PROXY via trust_env."""
+    text, ms = _http_get(url, timeout=timeout, retries=retries)
+    try:
+        return __import__("json").loads(text), ms
+    except Exception:
+        # Some edges return JS wrappers; callers that need raw text use fetch_text.
+        raise ValueError(f"non-json response ({len(text)} bytes)") from None
+
+
+def fetch_text(url: str, timeout: float = 15.0, retries: int = 2) -> tuple[str, int]:
+    return _http_get(url, timeout=timeout, retries=retries)
 
 
 # ---------- pure mappers ----------
@@ -198,8 +211,42 @@ def map_goldprice_org(j: dict) -> float | None:
     return _num(items[0].get("xauPrice")) if items else None
 
 
+def parse_navasan_initrates(text: str) -> dict:
+    """Parse www.navasan.net/initrates.php JS payload → rates dict.
+
+    Shape: ``var lastrates = {"usd_sell":{"value":"190,200",...}, ...};``
+    """
+    import json as _json
+
+    m = re.search(r"var\s+lastrates\s*=\s*(\{)", text)
+    if not m:
+        # bare JSON object
+        t = text.strip()
+        if t.startswith("{"):
+            return _json.loads(t)
+        raise ValueError("navasan initrates: lastrates not found")
+    start = m.start(1)
+    depth = 0
+    end = None
+    for i, ch in enumerate(text[start:], start):
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+    if end is None:
+        raise ValueError("navasan initrates: unclosed lastrates object")
+    return _json.loads(text[start:end])
+
+
 def map_navasan(j: dict) -> dict:
-    """Navasan /latest/ → free-market USD/AED/gold (Toman)."""
+    """Navasan rates dict → free-market USD/AED/gold (Toman).
+
+    Accepts both api.navasan.tech/latest and parsed initrates.php lastrates.
+    Gold 18ayar is Toman/gram; abshodeh is mithqal (not used as per-gram).
+    """
 
     def v(keys: list[str]) -> float | None:
         for k in keys:
@@ -208,24 +255,34 @@ def map_navasan(j: dict) -> dict:
                 n = _num(o["value"])
                 if n:
                     return n
+            elif o is not None and not isinstance(o, dict):
+                n = _num(o)
+                if n:
+                    return n
         return None
 
-    usd_buy = v(["harat_naghdi_buy"])
+    # Prefer street cash (Harat) then generic usd_* keys from initrates.
+    usd_buy = v(["harat_naghdi_buy", "usd_buy"])
     usd_sell = v(["harat_naghdi_sell", "harat_naghdi", "usd_sell", "usd"])
-    aed = v(["aed", "derham_dubai", "aed_sell"])
+    aed = v(["aed_sell", "aed", "dirham_dubai", "derham_dubai"])
     g18 = v(["18ayar", "gold_18", "tala_18ayar"])
-    g24 = v(["24ayar", "gold_24", "abshodeh"])
-    ounce = v(["ons", "ounce", "gold_ons"])
+    # Do NOT use abshodeh here — that is مثقال, not Toman/gram.
+    g24 = v(["24ayar", "gold_24"])
+    ounce = v(["ons", "ounce", "gold_ons", "usd_xau"])
+    usdt = v(["usd_usdt", "usdt"])
     if g24 is None and g18 is not None:
-        g24 = g18 / 0.75
+        g24 = g18 / PURITY_18
     usd = _pair_toman(usd_buy, usd_sell) if (usd_buy or usd_sell) else None
-    return {
+    out = {
         "ounceUsd": ounce,
         "usd": usd,
         "aed": _pair_toman(aed, aed) if aed else None,
         "gold18PerKg": _pair_toman(g18 * GRAMS_PER_KG, g18 * GRAMS_PER_KG) if g18 else None,
         "shemsh24PerKg": _pair_toman(g24 * GRAMS_PER_KG, g24 * GRAMS_PER_KG) if g24 else None,
     }
+    if usdt:
+        out["usdt"] = _pair_toman(usdt, usdt)
+    return out
 
 
 def map_tgju_table(j: dict, *, rial: bool = True) -> float | None:
@@ -385,9 +442,15 @@ def _sources(keys: dict) -> dict[str, SourceSpec]:
             "https://api.tgju.org/v1/market/indicator/summary-table-data/geram18",
             lambda j: map_tgju_table(j, rial=True),
         ),
-        # Optional keyed domestic
+        # Free Navasan website (no API key) — same source OTC desk uses
+        "navasan_web": (
+            "Navasan (web)",
+            "https://www.navasan.net/initrates.php",
+            map_navasan,  # after parse_navasan_initrates in run_source
+        ),
+        # Optional keyed domestic API
         "navasan": (
-            "Navasan",
+            "Navasan API",
             f"https://api.navasan.tech/latest/?api_key={nav_key}",
             map_navasan,
         ),
@@ -404,14 +467,23 @@ def run_source(name: str, keys: dict, overrides: dict, timeout: float = 10.0) ->
     url = overrides.get(name, url)
     safe = re.sub(r"(api_key|key)=[^&]+", r"\1=***", url)
     try:
-        j, ms = fetch_json(url, timeout=timeout)
+        if name == "navasan_web":
+            text, ms = fetch_text(url, timeout=timeout)
+            # cache-bust sometimes helps behind CDN
+            if "lastrates" not in text and "?" not in url:
+                text, ms = fetch_text(f"{url}?_={int(time.time())}", timeout=timeout)
+            j = parse_navasan_initrates(text)
+            value = mapper(j)
+        else:
+            j, ms = fetch_json(url, timeout=timeout)
+            value = mapper(j)
         return {
             "source": name,
             "label": label,
             "url": safe,
             "ok": True,
             "ms": ms,
-            "value": mapper(j),
+            "value": value,
         }
     except Exception as e:  # noqa: BLE001
         return {
@@ -435,9 +507,10 @@ def build_model(
     overrides = overrides or {}
     keys = {"navasan": navasan_key, "brsapi": brsapi_key}
 
-    # Always-on free sources. Free-market (TGJU) first so board has AED/gold
-    # even if later USDT venues time out under a slow outbound proxy.
+    # Always-on free sources. Free-market (Navasan web + TGJU) first so board
+    # has AED/gold even if later USDT venues time out under a slow outbound proxy.
     wanted = [
+        "navasan_web",
         "tgju_usd",
         "tgju_aed",
         "tgju_g18",
@@ -520,8 +593,17 @@ def build_model(
     if ounce is not None:
         prov["ounce"] = {"source": ounce_src, "ts": ts, "live": True}
 
-    # --- domestic: Navasan (key) > BrsApi (key) > TGJU free board ---
-    nav = by.get("navasan", {}).get("value")
+    # --- domestic free market ---
+    # Navasan API (keyed) > Navasan web (initrates, no key) for the «نوسان» box.
+    # TGJU (or BrsApi) independently fills «بن‌بست».
+    nav_api = by.get("navasan", {}).get("value")
+    nav_web = by.get("navasan_web", {}).get("value")
+    nav = nav_api or nav_web
+    nav_label = (
+        "Navasan API"
+        if nav_api
+        else ("Navasan (web)" if nav_web else None)
+    )
     brs = by.get("brsapi", {}).get("value")
     tgju_usd = by.get("tgju_usd", {}).get("value")
     tgju_aed = by.get("tgju_aed", {}).get("value")
@@ -545,17 +627,18 @@ def build_model(
             "ounceUsd": None,
         }
 
+    # Market aggregate: prefer Navasan, then BrsApi, then TGJU
     if nav:
-        dom, dom_name, dom_id = nav, "Navasan", "navasan"
+        dom, dom_name = nav, nav_label or "Navasan"
         est_dom = False
     elif brs:
-        dom, dom_name, dom_id = brs, "BrsApi", "bonbast"
+        dom, dom_name = brs, "BrsApi"
         est_dom = False
     elif tgju_dom:
-        dom, dom_name, dom_id = tgju_dom, "TGJU", "bonbast"
+        dom, dom_name = tgju_dom, "TGJU"
         est_dom = False
     else:
-        dom, dom_name, dom_id = None, None, None
+        dom, dom_name = None, None
         est_dom = True
 
     usd = dom.get("usd") if dom else None
@@ -563,6 +646,13 @@ def build_model(
     gold18 = dom.get("gold18PerKg") if dom else None
     gold24 = dom.get("shemsh24PerKg") if dom else None
 
+    if nav:
+        prov["navasan"] = {
+            "source": nav_label,
+            "ts": ts,
+            "live": True,
+            "estimated": False,
+        }
     if usd:
         prov["usd"] = {
             "source": dom_name,
@@ -647,49 +737,52 @@ def build_model(
             },
         }
 
-    if dom and dom_id:
-        base = exchanges.get(dom_id, {})
-        exchanges[dom_id] = {
-            **base,
-            "usd": dom.get("usd") or base.get("usd"),
-            "aed": dom.get("aed") or base.get("aed"),
-            "gold18PerKg": dom.get("gold18PerKg") or base.get("gold18PerKg"),
-            "shemsh24PerKg": dom.get("shemsh24PerKg") or base.get("shemsh24PerKg"),
+    # «نوسان» box — Navasan web/API (own quotes)
+    if nav:
+        nav_entry = {
+            "usd": nav.get("usd"),
+            "aed": nav.get("aed"),
+            "gold18PerKg": nav.get("gold18PerKg"),
+            "shemsh24PerKg": nav.get("shemsh24PerKg"),
             "own": {
-                "usdt": bool(base.get("usdt")),
-                "usd": bool(dom.get("usd")),
-                "aed": bool(dom.get("aed")),
-                "gold": bool(dom.get("gold18PerKg") or dom.get("shemsh24PerKg")),
+                "usdt": bool(nav.get("usdt")),
+                "usd": bool(nav.get("usd")),
+                "aed": bool(nav.get("aed")),
+                "gold": bool(nav.get("gold18PerKg") or nav.get("shemsh24PerKg")),
             },
         }
+        if nav.get("usdt"):
+            nav_entry["usdt"] = nav["usdt"]
+        exchanges["navasan"] = nav_entry
 
-    # If TGJU filled bonbast but Navasan key also present, keep both boxes.
-    if nav and tgju_dom and "bonbast" not in exchanges:
+    # «بن‌بست» box — TGJU free board (or BrsApi when no TGJU)
+    bonbast_src = tgju_dom or (brs if brs and not tgju_dom else None)
+    if bonbast_src:
         exchanges["bonbast"] = {
-            "usd": tgju_dom.get("usd"),
-            "aed": tgju_dom.get("aed"),
-            "gold18PerKg": tgju_dom.get("gold18PerKg"),
-            "shemsh24PerKg": tgju_dom.get("shemsh24PerKg"),
-            "own": {"usdt": False, "usd": True, "aed": True, "gold": True},
-        }
-
-    # Only fill empty "navasan" with aggregate when no free-market box exists yet
-    # (avoid duplicating TGJU data into both بن‌بست and نوسان).
-    if (
-        "navasan" not in exchanges
-        and "bonbast" not in exchanges
-        and (usd or gold18 or gold24 or aed)
-    ):
-        exchanges["navasan"] = {
-            "usd": usd,
-            "aed": aed,
-            "gold18PerKg": gold18,
-            "shemsh24PerKg": gold24,
+            "usd": bonbast_src.get("usd"),
+            "aed": bonbast_src.get("aed"),
+            "gold18PerKg": bonbast_src.get("gold18PerKg"),
+            "shemsh24PerKg": bonbast_src.get("shemsh24PerKg"),
             "own": {
                 "usdt": False,
-                "usd": bool(usd),
-                "aed": bool(aed),
-                "gold": bool(gold18 or gold24),
+                "usd": bool(bonbast_src.get("usd")),
+                "aed": bool(bonbast_src.get("aed")),
+                "gold": bool(
+                    bonbast_src.get("gold18PerKg") or bonbast_src.get("shemsh24PerKg")
+                ),
+            },
+        }
+    elif brs and "bonbast" not in exchanges:
+        exchanges["bonbast"] = {
+            "usd": brs.get("usd"),
+            "aed": brs.get("aed"),
+            "gold18PerKg": brs.get("gold18PerKg"),
+            "shemsh24PerKg": brs.get("shemsh24PerKg"),
+            "own": {
+                "usdt": False,
+                "usd": bool(brs.get("usd")),
+                "aed": bool(brs.get("aed")),
+                "gold": bool(brs.get("gold18PerKg") or brs.get("shemsh24PerKg")),
             },
         }
 

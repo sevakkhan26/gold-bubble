@@ -65,6 +65,7 @@ OVERRIDES = {
         "goldprice_org": "GOLDPRICEORG_URL",
         "coingecko": "COINGECKO_URL",
         "navasan": "NAVASAN_URL",
+        "navasan_web": "NAVASAN_WEB_URL",
         "brsapi": "BRSAPI_URL",
     }.items()
     if os.environ.get(v)
