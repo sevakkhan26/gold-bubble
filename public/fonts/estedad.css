@@ -1,0 +1,57 @@
+/* Self-hosted Estedad — modern Persian UI typeface */
+@font-face {
+  font-family: "Estedad";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("./estedad/estedad-arabic-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Estedad";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("./estedad/estedad-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Estedad";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("./estedad/estedad-arabic-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Estedad";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("./estedad/estedad-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Estedad";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("./estedad/estedad-arabic-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Estedad";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url("./estedad/estedad-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Estedad";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url("./estedad/estedad-arabic-700-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Estedad";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url("./estedad/estedad-latin-700-normal.woff2") format("woff2");
+}

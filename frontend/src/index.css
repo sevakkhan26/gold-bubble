@@ -33,8 +33,8 @@
   --color-ring: var(--ring);
   --color-buy: var(--buy);
   --color-sell: var(--sell);
-  --font-sans: "Vazirmatn", Tahoma, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: "Estedad", "Vazirmatn", Tahoma, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace;
 }
 
 :root {
