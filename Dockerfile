@@ -1,10 +1,6 @@
 FROM python:3.12-slim
-
 WORKDIR /srv
 
-# Prefer offline wheelhouse (LAN builds often cannot reach PyPI).
-# Host: pip download -r requirements.txt -d wheelhouse \
-#         --python-version 312 --platform manylinux2014_x86_64 --only-binary=:all:
 COPY requirements.txt .
 COPY wheelhouse /wheelhouse/
 RUN set -e; \
@@ -19,7 +15,7 @@ RUN set -e; \
 COPY app ./app
 COPY public ./public
 
-ARG APP_VERSION=1.0.0
+ARG APP_VERSION=1.1.0
 ARG GIT_SHA=unknown
 ENV APP_VERSION=$APP_VERSION \
     APP_GIT_SHA=$GIT_SHA \

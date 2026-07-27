@@ -1,8 +1,10 @@
 # Gold Market Live (Python + PostgreSQL)
 
-**Version:** `1.0.0` (semver in `app/version.py` + Docker `APP_VERSION` / `APP_GIT_SHA`)
+**Version:** `1.1.0` (semver in `app/version.py` + Docker `APP_VERSION` / `APP_GIT_SHA`)
 
-Full backend rewrite in **Python (FastAPI)** with **price history** for every asset/field stored in **PostgreSQL** (or SQLite for local dev). The frontend (`public/index.html`) consumes `GET /api/prices` and shows the live version badge from the API.
+Full backend rewrite in **Python (FastAPI)** with **price history** for every asset/field stored in **PostgreSQL** (or SQLite for local dev).
+
+**Frontend:** [shadcn/ui](https://ui.shadcn.com) + Vite + React + Tailwind (`frontend/`), built into `public/` and served by FastAPI. Live data from `GET /api/prices`, `GET /api/health`, `GET /api/debug`.
 
 ## Deploy / CI-CD (same pattern as Iran Market Terminal & OTC)
 
@@ -121,18 +123,28 @@ See `.env.example` for a ready template. **Never commit `.env`.**
 ## Project layout
 
 ```
-app/
-  main.py        # FastAPI routes + static mount
-  config.py      # env / .env loading
-  providers.py   # fetch + mappers + build_model
-  refresher.py   # background poll + history merge
-  db.py          # SQLAlchemy PricePoint model
-public/
-  index.html     # RTL dashboard (React CDN)
+app/                 # FastAPI backend
+frontend/            # Vite + React + shadcn/ui (source)
+public/              # Built frontend (npm run build → copy dist here)
 tests/
-  test_providers.py
 docker-compose.yml
 Dockerfile
+```
+
+### Frontend dev
+
+```bash
+# terminal 1 — API
+source .venv/bin/activate && uvicorn app.main:app --port 8787
+# terminal 2 — UI (proxies /api → :8787)
+cd frontend && npm install && npm run dev
+```
+
+### Frontend production build
+
+```bash
+cd frontend && npm ci && npm run build
+rm -rf ../public && mkdir ../public && cp -R dist/* ../public/
 ```
 
 ## License / notes

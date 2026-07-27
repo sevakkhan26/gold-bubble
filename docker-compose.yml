@@ -34,7 +34,7 @@ services:
     build:
       context: .
       args:
-        APP_VERSION: ${APP_VERSION:-1.0.1}
+        APP_VERSION: ${APP_VERSION:-1.1.0}
         GIT_SHA: ${GIT_SHA:-unknown}
     image: gold-bubble:latest
     container_name: gold-bubble
@@ -54,7 +54,7 @@ services:
       REFRESH_SEC: ${REFRESH_SEC:-60}
       HTTP_TIMEOUT: ${HTTP_TIMEOUT:-8}
       PORT: "8787"
-      APP_VERSION: ${APP_VERSION:-1.0.1}
+      APP_VERSION: ${APP_VERSION:-1.1.0}
       APP_GIT_SHA: ${GIT_SHA:-unknown}
       # Outbound proxy (e.g. mtproxier.ir:2053) — optional
       HTTP_PROXY: ${HTTP_PROXY:-}
