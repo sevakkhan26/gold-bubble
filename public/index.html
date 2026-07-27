@@ -4,11 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تابلوی بازار طلا و صرافی‌ها</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  html,body{margin:0;padding:0;background:#0B1220;color:#EDEFF2;font-family:Vazirmatn,Tahoma,sans-serif;}
-  #root{min-height:100vh;}
+  html,body{margin:0;padding:0;background:#0B1220;color:#EDEFF2;font-family:'Vazirmatn',Tahoma,sans-serif;height:100%;}
+  #root{min-height:100vh;height:100%;}
   #status{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#8B96A8;font-size:15px;background:#0B1220;z-index:5;text-align:center;padding:20px;}
   #errbox{position:fixed;top:0;left:0;right:0;background:#3a0d0d;color:#ffb3a7;font-family:monospace;font-size:12px;white-space:pre-wrap;padding:12px;z-index:99999;display:none;direction:ltr;text-align:left;max-height:50vh;overflow:auto;}
+  .app-layout{display:flex;width:100%;min-height:100vh;box-sizing:border-box;}
+  .app-main{flex:1 1 auto;min-width:0;width:100%;}
+  .app-sidebar{flex:0 0 250px;max-width:280px;}
 </style>
 </head>
 <body>
@@ -387,10 +393,15 @@ const API_BASE = typeof window !== "undefined" && window.__API_BASE__ || "/api";
 // Map the backend model -> per-exchange rates. Each exchange box shows ONLY the
 // data attributed to that exchange's own source (model.exchanges[id]); nothing is
 // broadcast across exchanges. Missing values stay null -> UI shows "—".
+// Market-level fields (Navasan / USDT-proxy / melt-estimate) are attached to the
+// navasan (or bonbast) row so the board is not empty when only aggregate data exists.
 function mapLiveModelToRates(model) {
   const rates = {};
   const tags = {};
   const byEx = model && model.exchanges || {};
+  const market = model && model.market || {};
+  const estimated = model && model.estimated || {};
+
   EXCHANGES.forEach(ex => {
     const e = byEx[ex.id] || {};
     const entry = {
@@ -404,10 +415,43 @@ function mapLiveModelToRates(model) {
     const liveKeys = Object.keys(entry).filter(k => entry[k]);
     rates[ex.id] = entry;
     tags[ex.id] = {
-      state: liveKeys.length ? "live" : "mock",
-      liveKeys
+      state: liveKeys.length ? "live" : "empty",
+      liveKeys,
+      estimated: false
     };
   });
+
+  // Attach aggregate market (domestic / proxy) onto navasan first, else bonbast.
+  const homeId = byEx.navasan ? "navasan" : byEx.bonbast ? "bonbast" : "navasan";
+  const home = rates[homeId] || {};
+  let homeTouched = false;
+  if (!home.usd && market.usd) {
+    home.usd = market.usd;
+    homeTouched = true;
+  }
+  if (!home.aed && market.aed) {
+    home.aed = market.aed;
+    homeTouched = true;
+  }
+  if (!home.gold18 && market.gold18PerKg) {
+    home.gold18 = market.gold18PerKg;
+    home.goldGlobal = market.gold18PerKg;
+    homeTouched = true;
+  }
+  if (!home.shemsh24 && market.shemsh24PerKg) {
+    home.shemsh24 = market.shemsh24PerKg;
+    homeTouched = true;
+  }
+  if (homeTouched) {
+    rates[homeId] = home;
+    const liveKeys = Object.keys(home).filter(k => home[k]);
+    tags[homeId] = {
+      state: "live",
+      liveKeys,
+      estimated: !!(estimated.usd || estimated.gold)
+    };
+  }
+
   return {
     rates,
     tags
@@ -547,6 +591,10 @@ const NAV_ITEMS = [{
   id: "formulas",
   label: "فرمول‌ها",
   icon: Sigma
+}, {
+  id: "alerts",
+  label: "هشدارها",
+  icon: Bell
 }, {
   id: "b24dom",
   label: "آربیتراژ طلای ۲۴ عیار داخلی",
@@ -877,6 +925,20 @@ function MarketDashboard() {
           setLiveOunce(model.ounceUsd ?? null);
           setDataMode(model.stale ? "stale" : "live");
           setExchangeUpdated(new Date());
+          // Prefill formula calculators from live market (user can still edit).
+          const mUsd = model.market && model.market.usd;
+          const mAed = model.market && model.market.aed;
+          const mG18 = model.market && model.market.gold18PerKg;
+          const usdSell = mUsd && (mUsd.sell != null ? mUsd.sell : mUsd.buy);
+          const aedSell = mAed && (mAed.sell != null ? mAed.sell : mAed.buy);
+          // gold18PerKg is per kilogram — formula inputs use per-gram Toman
+          const g18Sell = mG18 && (mG18.sell != null ? mG18.sell : mG18.buy);
+          if (usdSell != null) setManualDollar(String(Math.round(usdSell)));
+          if (aedSell != null) setManualAed(String(Math.round(aedSell)));
+          if (g18Sell != null) setManualGold18(String(Math.round(g18Sell / 1000)));
+          const mG24 = model.market && model.market.shemsh24PerKg;
+          const g24Sell = mG24 && (mG24.sell != null ? mG24.sell : mG24.buy);
+          if (g24Sell != null) setManualGold24(String(Math.round(g24Sell / 1000)));
           return;
         }
       }
@@ -1460,9 +1522,9 @@ function MarketDashboard() {
 
         @media (max-width: 860px) {
           .app-layout { flex-direction: column !important; }
-          .app-sidebar { width: 100% !important; border-left: none !important; border-bottom: 1px solid #23304A; position: static !important; padding: 12px 14px !important; }
+          .app-sidebar { width: 100% !important; max-width: none !important; flex: none !important; border-left: none !important; border-bottom: 1px solid #23304A; position: static !important; padding: 12px 14px !important; min-height: auto !important; }
           .app-sidebar-nav { flex-direction: row !important; flex-wrap: wrap !important; }
-          .app-leftbar { width: 100% !important; border-right: none !important; border-top: 1px solid #23304A; padding: 12px 14px !important; }
+          .app-main { padding: 14px 12px 32px !important; }
         }
         @media (max-width: 640px) {
           .hide-mobile { display: none; }
@@ -1550,7 +1612,7 @@ function MarketDashboard() {
       style: styles.navBadge
     }, badge));
   }))), /*#__PURE__*/React.createElement("div", {
-    className: "mkt-root",
+    className: "mkt-root app-main",
     style: styles.container
   }, /*#__PURE__*/React.createElement("header", {
     style: styles.header
@@ -1697,8 +1759,8 @@ function MarketDashboard() {
         color: isLive ? "#35C48C" : "#D4AF37",
         border: `1px solid ${isLive ? "rgba(53,196,140,0.4)" : "rgba(212,175,55,0.4)"}`
       },
-      title: isLive ? "بخشی از داده‌ها زنده است: " + liveKeys.join(", ") : "همه داده‌ها نمایشی است"
-    }, isLive ? "زنده: " + liveKeys.map(k => k === "usdt" ? "تتر" : k === "usd" ? "دلار" : k).join("، ") : "نمایشی")), /*#__PURE__*/React.createElement("div", {
+      title: isLive ? "بخشی از داده‌ها زنده است: " + liveKeys.join(", ") : tag?.state === "empty" ? "این صرافی از بک‌اند داده ندارد" : "همه داده‌ها نمایشی است"
+    }, isLive ? (tag?.estimated ? "تخمینی: " : "زنده: ") + liveKeys.map(k => k === "usdt" ? "تتر" : k === "usd" ? "دلار" : k === "aed" ? "درهم" : k === "gold18" ? "۱۸" : k === "shemsh24" ? "۲۴" : k).join("، ") : tag?.state === "empty" ? "بدون داده" : "نمایشی")), /*#__PURE__*/React.createElement("div", {
       style: styles.rankBar
     }, renderRankCluster("دلار", buyRank, sellRank, buySellDiffPct), /*#__PURE__*/React.createElement("span", {
       style: {
@@ -3434,24 +3496,7 @@ function MarketDashboard() {
     }
   }, "پاک کردن همه"))), /*#__PURE__*/React.createElement("footer", {
     style: styles.footer
-  }, "منبع داده: CoinGecko · قیمت طلا از توکن PAX Gold (معادل قیمت اونس طلای جهانی) تخمین زده شده · بروزرسانی خودکار")), /*#__PURE__*/React.createElement("aside", {
-    style: styles.leftBar,
-    className: "app-leftbar"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => setPage("alerts"),
-    className: "nav-btn focus-ring",
-    style: {
-      ...styles.leftAlertBtn,
-      ...(page === "alerts" ? styles.sidebarBtnActive : {})
-    }
-  }, alerts.filter(a => alertTriggered(a)).length > 0 ? /*#__PURE__*/React.createElement(BellRing, {
-    size: 20,
-    color: "#F0553F"
-  }) : /*#__PURE__*/React.createElement(Bell, {
-    size: 20
-  }), /*#__PURE__*/React.createElement("span", null, "هشدارها"), alerts.filter(a => alertTriggered(a)).length > 0 && /*#__PURE__*/React.createElement("span", {
-    style: styles.navBadge
-  }, alerts.filter(a => alertTriggered(a)).length)))));
+  }, "منبع داده: بک‌اند /api/prices (نوبیتکس · والکس · نوسان · gold-api · CoinGecko) · بروزرسانی خودکار")));
 }
 const styles = {
   root: {
@@ -3475,10 +3520,11 @@ const styles = {
     color: "#EDEFF2"
   },
   container: {
-    flex: 1,
+    flex: "1 1 auto",
     minWidth: 0,
-    maxWidth: 1180,
-    padding: "20px 24px 40px"
+    width: "100%",
+    maxWidth: "none",
+    padding: "20px 28px 48px"
   },
   header: {
     display: "flex",
@@ -3822,19 +3868,24 @@ const styles = {
   },
   layout: {
     display: "flex",
-    alignItems: "flex-start",
+    alignItems: "stretch",
     gap: 0,
-    minHeight: "100vh"
+    width: "100%",
+    minHeight: "100vh",
+    boxSizing: "border-box"
   },
   sidebar: {
-    width: 240,
+    width: 250,
+    flex: "0 0 250px",
     flexShrink: 0,
     background: "#0F1B2E",
     borderLeft: "1px solid #23304A",
     padding: "20px 14px",
     position: "sticky",
     top: 0,
-    alignSelf: "stretch"
+    alignSelf: "stretch",
+    minHeight: "100vh",
+    boxSizing: "border-box"
   },
   sidebarBrand: {
     display: "flex",

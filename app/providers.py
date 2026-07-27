@@ -288,6 +288,16 @@ def build_model(navasan_key: str = "", brsapi_key: str = "", overrides: dict | N
             "gold18PerKg": dom.get("gold18PerKg"), "shemsh24PerKg": dom.get("shemsh24PerKg"),
         }
 
+    # When domestic source is missing, still expose aggregate market (USDT-proxy
+    # dollar + melt gold) under the "navasan" slot so the board is not empty.
+    if "navasan" not in exchanges and (usd or gold18 or gold24 or aed):
+        exchanges["navasan"] = {
+            "usd": usd,
+            "aed": aed,
+            "gold18PerKg": gold18,
+            "shemsh24PerKg": gold24,
+        }
+
     model = {
         "updatedAt": ts,
         "ounceUsd": ounce,

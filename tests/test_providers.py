@@ -86,6 +86,9 @@ def test_build_model_keyless_gold_fallback(monkeypatch):
     m = out["model"]
     assert m["ounceUsd"] == 4070  # fell back to goldprice.org
     assert m["estimated"]["usd"] is True  # USDT proxy
+    # Aggregate market still exposed under navasan so the board is not empty
+    assert "navasan" in m["exchanges"]
+    assert m["exchanges"]["navasan"]["usd"]["sell"] is not None
 
 
 # ---------- history DB + API endpoints ----------
