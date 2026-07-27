@@ -68,9 +68,9 @@ services:
       test:
         [
           "CMD",
-          "curl",
-          "-fsS",
-          "http://127.0.0.1:8787/api/health",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8787/api/health', timeout=4).status==200 else 1)",
         ]
       interval: 20s
       timeout: 5s

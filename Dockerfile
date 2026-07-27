@@ -2,11 +2,6 @@ FROM python:3.12-slim
 
 WORKDIR /srv
 
-# System CA certs for HTTPS providers + curl for healthcheck
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/*
-
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -24,7 +19,8 @@ RUN date -u +"%Y-%m-%dT%H:%M:%SZ" > /srv/app/.build_time
 
 EXPOSE 8787
 
-HEALTHCHECK --interval=20s --timeout=5s --start-period=40s --retries=5 \
-  CMD curl -fsS "http://127.0.0.1:${PORT:-8787}/api/health" >/dev/null || exit 1
+# No apt/curl needed — pure Python health probe (works offline in locked-down builds).
+HEALTHCHECK --interval=20s --timeout=5s --start-period=45s --retries=5 \
+  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:%s/api/health'%(__import__('os').environ.get('PORT','8787')), timeout=4).status==200 else 1)"
 
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8787}"]
