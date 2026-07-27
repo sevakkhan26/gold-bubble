@@ -164,6 +164,31 @@ def map_tetherland(j: dict) -> dict | None:
     return _pair_toman(buy, sell)
 
 
+def map_abantether_ticker(j: dict) -> dict | None:
+    """Abantether OTC ticker → USDTIRT buy/sell Toman.
+
+    Shape: { data: { markets: { USDTIRT: { symbol, buy_price, sell_price, ... } } } }
+    """
+    data = j.get("data") if isinstance(j, dict) else None
+    markets = (data or {}).get("markets") if isinstance(data, dict) else None
+    if not isinstance(markets, dict):
+        markets = j.get("markets") if isinstance(j, dict) else None
+    if not isinstance(markets, dict):
+        return None
+    cur = markets.get("USDTIRT") or markets.get("USDT")
+    if not isinstance(cur, dict):
+        # fallback: any key that is exactly USDT*IRT
+        for k, v in markets.items():
+            if str(k).upper() in ("USDTIRT", "USDTTMN", "USDT_IRT") and isinstance(v, dict):
+                cur = v
+                break
+    if not isinstance(cur, dict):
+        return None
+    buy = _num(cur.get("buy_price") or cur.get("buy") or cur.get("price"))
+    sell = _num(cur.get("sell_price") or cur.get("sell") or cur.get("price"))
+    return _pair_toman(buy, sell)
+
+
 def map_gold_api(j: dict) -> float | None:
     return _num(j.get("price"))
 
@@ -324,6 +349,11 @@ def _sources(keys: dict) -> dict[str, SourceSpec]:
             "https://api.tetherland.com/currencies",
             map_tetherland,
         ),
+        "abantether": (
+            "Abantether USDT",
+            "https://api.abantether.com/api/v1/manager/otc/ticker",
+            map_abantether_ticker,
+        ),
         # Global gold
         "gold_api": ("gold-api.com XAU", "https://api.gold-api.com/price/XAU", map_gold_api),
         "goldprice_org": (
@@ -405,8 +435,12 @@ def build_model(
     overrides = overrides or {}
     keys = {"navasan": navasan_key, "brsapi": brsapi_key}
 
-    # Always-on free sources
+    # Always-on free sources. Free-market (TGJU) first so board has AED/gold
+    # even if later USDT venues time out under a slow outbound proxy.
     wanted = [
+        "tgju_usd",
+        "tgju_aed",
+        "tgju_g18",
         "nobitex",
         "wallex",
         "bitpin",
@@ -414,12 +448,10 @@ def build_model(
         "exir",
         "ramzinex",
         "tetherland",
+        "abantether",
         "gold_api",
         "goldprice_org",
         "coingecko",
-        "tgju_usd",
-        "tgju_aed",
-        "tgju_g18",
     ]
     if navasan_key:
         wanted.append("navasan")
@@ -427,15 +459,26 @@ def build_model(
         wanted.append("brsapi")
 
     results: list[dict] = []
-    # Modest parallelism — too many concurrent TLS handshakes through the
-    # outbound proxy causes widespread timeouts on this host.
-    workers = min(4, len(wanted))
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        futs = {
-            pool.submit(run_source, n, keys, overrides, timeout): n for n in wanted
-        }
-        for fut in as_completed(futs):
-            results.append(fut.result())
+    # Under HTTP(S)_PROXY, parallel TLS handshakes commonly stall. Prefer
+    # sequential there; light parallelism only on direct egress.
+    import os as _os
+
+    proxy_on = bool(
+        _os.environ.get("HTTPS_PROXY")
+        or _os.environ.get("HTTP_PROXY")
+        or _os.environ.get("OUTBOUND_HTTPS_PROXY")
+    )
+    workers = 1 if proxy_on else min(4, len(wanted))
+    if workers == 1:
+        for n in wanted:
+            results.append(run_source(n, keys, overrides, timeout))
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futs = {
+                pool.submit(run_source, n, keys, overrides, timeout): n for n in wanted
+            }
+            for fut in as_completed(futs):
+                results.append(fut.result())
 
     by = {r["source"]: r for r in results}
     ts = _now_iso()
@@ -451,6 +494,7 @@ def build_model(
         ("exir", "exir"),
         ("ramzinex", "ramzinex"),
         ("tetherland", "tetherland"),
+        ("abantether", "abantether"),
     ]:
         val = by.get(src_id, {}).get("value")
         if val:
@@ -583,19 +627,40 @@ def build_model(
             }
 
     # --- per-exchange board ---
+    # Crypto venues only quote USDT. Free-market AED/gold (and cash USD when
+    # available) are attached as market references so the full panel is filled
+    # — UI marks them as shared free-market, not venue-own quotes.
     exchanges: dict = {}
     for ex_id, usdt in usdt_ex.items():
-        # USDT mid is the desk's tradeable "dollar proxy" — expose as usd too
-        # so bubble/market tables can compute without mock data.
-        exchanges[ex_id] = {"usdt": usdt, "usd": usdt}
+        exchanges[ex_id] = {
+            "usdt": usdt,
+            # tradeable dollar proxy for this venue
+            "usd": usdt,
+            "aed": aed,
+            "gold18PerKg": gold18,
+            "shemsh24PerKg": gold24,
+            "own": {
+                "usdt": True,
+                "usd": False,  # proxy from USDT
+                "aed": False,
+                "gold": False,
+            },
+        }
 
     if dom and dom_id:
+        base = exchanges.get(dom_id, {})
         exchanges[dom_id] = {
-            **exchanges.get(dom_id, {}),
-            "usd": dom.get("usd"),
-            "aed": dom.get("aed"),
-            "gold18PerKg": dom.get("gold18PerKg"),
-            "shemsh24PerKg": dom.get("shemsh24PerKg"),
+            **base,
+            "usd": dom.get("usd") or base.get("usd"),
+            "aed": dom.get("aed") or base.get("aed"),
+            "gold18PerKg": dom.get("gold18PerKg") or base.get("gold18PerKg"),
+            "shemsh24PerKg": dom.get("shemsh24PerKg") or base.get("shemsh24PerKg"),
+            "own": {
+                "usdt": bool(base.get("usdt")),
+                "usd": bool(dom.get("usd")),
+                "aed": bool(dom.get("aed")),
+                "gold": bool(dom.get("gold18PerKg") or dom.get("shemsh24PerKg")),
+            },
         }
 
     # If TGJU filled bonbast but Navasan key also present, keep both boxes.
@@ -605,6 +670,7 @@ def build_model(
             "aed": tgju_dom.get("aed"),
             "gold18PerKg": tgju_dom.get("gold18PerKg"),
             "shemsh24PerKg": tgju_dom.get("shemsh24PerKg"),
+            "own": {"usdt": False, "usd": True, "aed": True, "gold": True},
         }
 
     # Only fill empty "navasan" with aggregate when no free-market box exists yet
@@ -619,8 +685,24 @@ def build_model(
             "aed": aed,
             "gold18PerKg": gold18,
             "shemsh24PerKg": gold24,
+            "own": {
+                "usdt": False,
+                "usd": bool(usd),
+                "aed": bool(aed),
+                "gold": bool(gold18 or gold24),
+            },
         }
 
+    usdt_ids = (
+        "nobitex",
+        "wallex",
+        "bitpin",
+        "tabdeal",
+        "exir",
+        "ramzinex",
+        "tetherland",
+        "abantether",
+    )
     model = {
         "updatedAt": ts,
         "ounceUsd": ounce,
@@ -631,9 +713,7 @@ def build_model(
             "gold18PerKg": gold18,
             "shemsh24PerKg": gold24,
         },
-        "usdtByExchange": {
-            k: usdt_ex.get(k) for k in ("nobitex", "wallex", "bitpin", "tabdeal", "exir", "ramzinex", "tetherland")
-        },
+        "usdtByExchange": {k: usdt_ex.get(k) for k in usdt_ids},
         "foreignGold": foreign,
         "sources": prov,
         "estimated": {

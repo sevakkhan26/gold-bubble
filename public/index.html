@@ -390,9 +390,14 @@ const BASE_USD_SELL = 158000;
 // price, then to mock data — the UI never breaks.
 const API_BASE = typeof window !== "undefined" && window.__API_BASE__ || "/api";
 
+// Crypto venues only quote USDT; free-market box owns cash USD/AED/gold.
+const USDT_ONLY_VENUES = new Set([
+  "nobitex", "wallex", "bitpin", "tabdeal", "abantether", "ramzinex", "exir", "tetherland"
+]);
+
 // Map the backend model -> per-exchange rates for the board + bubble pages.
-// Real sources only. For USDT venues we also expose USDT as a dollar proxy so
-// bubble/arb pages can compute (حباب دلار / melt) without inventing mock quotes.
+// Real sources only. USDT venues: dollar = USDT proxy; AED/gold from free market
+// so the full panel is filled (not empty dashes). Own-gold flags stay honest.
 function mapLiveModelToRates(model) {
   const rates = {};
   const tags = {};
@@ -400,43 +405,61 @@ function mapLiveModelToRates(model) {
   const market = model && model.market || {};
   const estimated = model && model.estimated || {};
 
+  // Shared free-market refs (TGJU / Navasan / melt fallback)
+  const mktAed = market.aed || null;
+  const mktG18 = market.gold18PerKg || null;
+  const mktG24 = market.shemsh24PerKg || null;
+  const mktUsd = market.usd || null;
+
   EXCHANGES.forEach(ex => {
     const e = byEx[ex.id] || {};
-    const hasOwnUsd = !!(e.usd && (e.usd.buy != null || e.usd.sell != null));
-    const hasOwnAed = !!(e.aed && (e.aed.buy != null || e.aed.sell != null));
-    const hasOwnG18 = !!(e.gold18PerKg && (e.gold18PerKg.buy != null || e.gold18PerKg.sell != null));
-    const hasOwnG24 = !!(e.shemsh24PerKg && (e.shemsh24PerKg.buy != null || e.shemsh24PerKg.sell != null));
+    const own = e.own || {};
     const usdt = e.usdt || null;
-    // Dollar proxy: free-market USD if present, else this venue's USDT mid
-    const usd = hasOwnUsd ? e.usd : usdt;
+    const isUsdtOnly = USDT_ONLY_VENUES.has(ex.id);
+    const pairOk = p => !!(p && (p.buy != null || p.sell != null));
+
+    // Dollar: venue cash USD if own, else USDT proxy, else free-market USD
+    const hasCashUsd = pairOk(e.usd) && own.usd === true;
+    const usd = hasCashUsd ? e.usd : usdt || (pairOk(e.usd) ? e.usd : mktUsd);
+
+    // AED / gold: venue if present, else free-market (panel fill)
+    const aed = pairOk(e.aed) ? e.aed : mktAed;
+    const gold18 = pairOk(e.gold18PerKg) ? e.gold18PerKg : mktG18;
+    const shemsh24 = pairOk(e.shemsh24PerKg) ? e.shemsh24PerKg : mktG24;
+
+    // Domestic gold arb only when this venue truly quotes gold (not market fill)
+    const hasOwnGold = own.gold === true
+      || (!isUsdtOnly && (pairOk(e.gold18PerKg) || pairOk(e.shemsh24PerKg)) && own.gold !== false);
+
     const entry = {
       usd: usd || null,
       usdt: usdt,
-      aed: hasOwnAed ? e.aed : null,
-      gold18: hasOwnG18 ? e.gold18PerKg : null,
-      shemsh24: hasOwnG24 ? e.shemsh24PerKg : null,
-      goldGlobal: hasOwnG18 ? e.gold18PerKg : null,
-      // flags used by bubble page for fair-value composition
-      _usdFromUsdt: !hasOwnUsd && !!usdt,
-      _hasOwnGold: hasOwnG18 || hasOwnG24
+      aed: aed || null,
+      gold18: gold18 || null,
+      shemsh24: shemsh24 || null,
+      goldGlobal: gold18 || null,
+      _usdFromUsdt: !hasCashUsd && !!usdt,
+      _aedFromMarket: !pairOk(e.aed) && !!aed,
+      _goldFromMarket: !hasOwnGold && !!gold18,
+      _hasOwnGold: !!hasOwnGold
     };
+
     const liveKeys = [];
     if (entry.usdt) liveKeys.push("usdt");
-    if (hasOwnUsd) liveKeys.push("usd");
-    else if (entry.usd) liveKeys.push("usd"); // proxy
+    if (entry.usd) liveKeys.push("usd");
     if (entry.aed) liveKeys.push("aed");
     if (entry.gold18) liveKeys.push("gold18");
     if (entry.shemsh24) liveKeys.push("shemsh24");
+
     rates[ex.id] = entry;
     tags[ex.id] = {
       state: liveKeys.length ? "live" : "empty",
       liveKeys,
-      estimated: !hasOwnUsd && !!usdt
+      estimated: !!(entry._usdFromUsdt || entry._aedFromMarket || entry._goldFromMarket || estimated.usd || estimated.gold)
     };
   });
 
-  // Free-market board (TGJU → بن‌بست or Navasan when keyed) — fill missing FX/gold
-  // only on the free-market home row, never invent mock numbers.
+  // Free-market home row (TGJU → بن‌بست or Navasan when keyed)
   const homeId = byEx.navasan && (byEx.navasan.usd || byEx.navasan.gold18PerKg)
     ? "navasan"
     : byEx.bonbast
@@ -445,9 +468,7 @@ function mapLiveModelToRates(model) {
         ? "bonbast"
         : null;
   if (homeId) {
-    const home = {
-      ...(rates[homeId] || {})
-    };
+    const home = { ...(rates[homeId] || {}) };
     let homeTouched = false;
     if (!home.usd && market.usd) {
       home.usd = market.usd;
@@ -461,6 +482,7 @@ function mapLiveModelToRates(model) {
       home.gold18 = market.gold18PerKg;
       home.goldGlobal = market.gold18PerKg;
       home._hasOwnGold = true;
+      home._goldFromMarket = false;
       homeTouched = true;
     }
     if (!home.shemsh24 && market.shemsh24PerKg) {
@@ -470,7 +492,7 @@ function mapLiveModelToRates(model) {
     }
     if (homeTouched || tags[homeId]?.state === "live") {
       rates[homeId] = home;
-      const liveKeys = Object.keys(home).filter(k => home[k] && k[0] !== "_");
+      const liveKeys = ["usd", "usdt", "aed", "gold18", "shemsh24"].filter(k => home[k]);
       tags[homeId] = {
         state: liveKeys.length ? "live" : "empty",
         liveKeys,
@@ -479,10 +501,7 @@ function mapLiveModelToRates(model) {
     }
   }
 
-  return {
-    rates,
-    tags
-  };
+  return { rates, tags };
 }
 
 // Parse a raw Navasan /latest/ response into a single exchange entry (نوسان box).
@@ -1794,7 +1813,7 @@ function MarketDashboard() {
     style: {
       fontSize: 11
     }
-  }, "/api/prices"), "). نوبیتکس/والکس/بیت‌پین/تبدیل/اکسیر/رمزینکس/تترلند = تتر زنده · بن‌بست = TGJU بازار آزاد · نوسان = کلید Navasan (در تنظیمات یا env). صرافی‌های بدون connector یا fail = «بدون داده»."), /*#__PURE__*/React.createElement("p", {
+  }, "/api/prices"), "). نوبیتکس/والکس/بیت‌پین/تبدیل/آبان‌تتر/اکسیر/رمزینکس/تترلند = تتر زنده (دلار = پراکسی تتر) · درهم و طلای بازار آزاد از TGJU روی همه کارت‌ها پر می‌شه · بن‌بست = بازار آزاد · نوسان = کلید Navasan. صرافی‌ای که API‌اش fail بشه موقتاً «بدون داده» می‌مونه."), /*#__PURE__*/React.createElement("p", {
     style: {
       fontSize: 11.5,
       color: "#8B96A8",

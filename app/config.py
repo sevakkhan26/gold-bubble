@@ -35,7 +35,8 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./data.db")
 
 PORT = _int("PORT", 8787)
 REFRESH_SEC = _int("REFRESH_SEC", 60, minimum=15)
-HTTP_TIMEOUT = _int("HTTP_TIMEOUT", 8)
+# IR edges + outbound proxy need headroom; 8s was too tight under mtproxier.
+HTTP_TIMEOUT = _int("HTTP_TIMEOUT", 15)
 
 NAVASAN_API_KEY = os.environ.get("NAVASAN_API_KEY", "")
 BRSAPI_KEY = os.environ.get("BRSAPI_KEY", "")

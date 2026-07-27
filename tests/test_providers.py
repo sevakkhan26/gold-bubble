@@ -12,6 +12,7 @@ from app import providers  # noqa: E402
 from app.providers import (  # noqa: E402
     GRAMS_PER_KG,
     build_model,
+    map_abantether_ticker,
     map_bitpin_book,
     map_gold_api,
     map_goldprice_org,
@@ -58,6 +59,24 @@ def test_map_tetherland():
         {"status": 200, "data": {"currencies": {"USDT": {"buy_price": 190000, "sell_price": 190100}}}}
     )
     assert r["buy"] == 190000 and r["sell"] == 190100
+
+
+def test_map_abantether_ticker():
+    r = map_abantether_ticker(
+        {
+            "data": {
+                "markets": {
+                    "BTCIRT": {"symbol": "BTC", "buy_price": "1", "sell_price": "1"},
+                    "USDTIRT": {
+                        "symbol": "USDT",
+                        "buy_price": "190877",
+                        "sell_price": "189444",
+                    },
+                }
+            }
+        }
+    )
+    assert r["buy"] == 190877 and r["sell"] == 189444
 
 
 def test_map_tgju_table():
@@ -116,6 +135,21 @@ def _fake_fetch(url, timeout=8.0, retries=1):
             {"data": {"currencies": {"USDT": {"buy_price": 91950, "sell_price": 92050}}}},
             5,
         )
+    if "abantether" in u:
+        return (
+            {
+                "data": {
+                    "markets": {
+                        "USDTIRT": {
+                            "symbol": "USDT",
+                            "buy_price": "91980",
+                            "sell_price": "92080",
+                        }
+                    }
+                }
+            },
+            5,
+        )
     if "price_dollar_rl" in u:
         return ({"data": [["920,000", "x"]]}, 5)
     if "price_aed" in u:
@@ -143,8 +177,14 @@ def test_build_model_multi_exchange_usdt(monkeypatch):
     assert m["exchanges"]["exir"]["usdt"]["latest"] == 92010
     assert m["exchanges"]["ramzinex"]["usdt"]["buy"] == 92010
     assert m["exchanges"]["tetherland"]["usdt"]["buy"] == 91950
+    assert m["exchanges"]["abantether"]["usdt"]["buy"] == 91980
     # USDT also exposed as usd proxy for bubble math
     assert m["exchanges"]["nobitex"]["usd"]["sell"] == 92300
+    # Free-market AED/gold filled onto USDT venues so the board is complete
+    assert m["exchanges"]["nobitex"]["aed"]["sell"] == 25100
+    assert m["exchanges"]["nobitex"]["gold18PerKg"]["sell"] == 6250000 * GRAMS_PER_KG
+    assert m["exchanges"]["nobitex"]["own"]["gold"] is False
+    assert m["exchanges"]["nobitex"]["own"]["usdt"] is True
     # TGJU also available for bonbast when navasan present
     assert m["ounceUsd"] == 4072
     assert m["estimated"]["usd"] is False
@@ -157,6 +197,9 @@ def test_build_model_tgju_without_navasan(monkeypatch):
     assert m["exchanges"]["bonbast"]["usd"]["sell"] == 92000  # TGJU rial/10
     assert m["exchanges"]["bonbast"]["aed"]["sell"] == 25000
     assert m["estimated"]["usd"] is False  # TGJU is live free-market, not USDT proxy
+    # USDT venues get free-market AED/gold attached
+    assert m["exchanges"]["wallex"]["aed"]["sell"] == 25000
+    assert m["exchanges"]["wallex"]["own"]["aed"] is False
 
 
 def test_history_store_and_api(monkeypatch):

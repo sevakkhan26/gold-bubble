@@ -31,24 +31,42 @@ def merge_model(prev: dict | None, nxt: dict) -> dict:
     ids = set(prev.get("exchanges", {})) | set(nxt.get("exchanges", {}))
     for i in ids:
         pe, ne = prev.get("exchanges", {}).get(i, {}), nxt.get("exchanges", {}).get(i, {})
+        own_p, own_n = pe.get("own") or {}, ne.get("own") or {}
         exchanges[i] = {
             "usdt": _pair(pe.get("usdt"), ne.get("usdt")),
             "usd": _pair(pe.get("usd"), ne.get("usd")),
             "aed": _pair(pe.get("aed"), ne.get("aed")),
             "gold18PerKg": _pair(pe.get("gold18PerKg"), ne.get("gold18PerKg")),
             "shemsh24PerKg": _pair(pe.get("shemsh24PerKg"), ne.get("shemsh24PerKg")),
+            "own": {**own_p, **own_n} if (own_p or own_n) else ne.get("own") or pe.get("own"),
         }
     fg_p, fg_n = prev.get("foreignGold") or {}, nxt.get("foreignGold") or {}
+    usdt_ids = (
+        "nobitex",
+        "wallex",
+        "bitpin",
+        "tabdeal",
+        "exir",
+        "ramzinex",
+        "tetherland",
+        "abantether",
+    )
+    prev_u, nxt_u = prev.get("usdtByExchange") or {}, nxt.get("usdtByExchange") or {}
+    usdt_by = {k: _pair(prev_u.get(k), nxt_u.get(k)) for k in usdt_ids}
+    # keep any extra keys from either side
+    for k in set(prev_u) | set(nxt_u):
+        if k not in usdt_by:
+            usdt_by[k] = _pair(prev_u.get(k), nxt_u.get(k))
     return {
         "updatedAt": nxt["updatedAt"],
         "ounceUsd": _pick(prev.get("ounceUsd"), nxt.get("ounceUsd")),
         "exchanges": exchanges,
         "market": market,
-        "usdtByExchange": {
-            "nobitex": _pair(prev.get("usdtByExchange", {}).get("nobitex"), nxt.get("usdtByExchange", {}).get("nobitex")),
-            "wallex": _pair(prev.get("usdtByExchange", {}).get("wallex"), nxt.get("usdtByExchange", {}).get("wallex")),
+        "usdtByExchange": usdt_by,
+        "foreignGold": {
+            "pax-gold": _pick(fg_p.get("pax-gold"), fg_n.get("pax-gold")),
+            "tether-gold": _pick(fg_p.get("tether-gold"), fg_n.get("tether-gold")),
         },
-        "foreignGold": {"pax-gold": _pick(fg_p.get("pax-gold"), fg_n.get("pax-gold")), "tether-gold": _pick(fg_p.get("tether-gold"), fg_n.get("tether-gold"))},
         "sources": {**prev.get("sources", {}), **nxt.get("sources", {})},
         "estimated": nxt.get("estimated") or prev.get("estimated") or {"usd": False, "gold": False},
         "anyLive": nxt.get("anyLive") or prev.get("anyLive", False),
