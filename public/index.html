@@ -8,38 +8,53 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  /* Design tokens — shadcn-inspired dark gold theme (UI only) */
+  /* ===== Design system (UI kit) — content-agnostic ===== */
   :root{
-    --background:#0a0f1a;
-    --foreground:#f4f6f9;
-    --card:#121a2b;
-    --card-elevated:#162033;
-    --popover:#121a2b;
+    --background:#080d16;
+    --foreground:#f3f5f8;
+    --card:#101826;
+    --card-elevated:#141f30;
+    --popover:#121c2c;
     --primary:#d4af37;
+    --primary-hover:#e0c04a;
     --primary-foreground:#0a0f1a;
-    --secondary:#1a2438;
-    --muted:#1a2438;
+    --secondary:#1a2436;
+    --muted:#152032;
     --muted-foreground:#8b96a8;
-    --accent:#1e2a40;
+    --accent:#1c2940;
     --destructive:#f0553f;
     --success:#35c48c;
-    --border:#2a3650;
-    --input:#1a2438;
+    --warning:#d4af37;
+    --border:rgba(255,255,255,.08);
+    --border-strong:rgba(255,255,255,.12);
+    --input:#121c2c;
     --ring:#d4af37;
-    --radius:0.75rem;
-    --shadow-sm:0 1px 2px rgba(0,0,0,.35);
-    --shadow:0 4px 16px rgba(0,0,0,.35);
-    --shadow-lg:0 12px 40px rgba(0,0,0,.45);
+    --radius:14px;
+    --radius-sm:10px;
+    --radius-lg:18px;
+    --radius-full:999px;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+    --shadow:0 8px 24px rgba(0,0,0,.35);
+    --shadow-lg:0 20px 50px rgba(0,0,0,.5);
+    --shadow-glow:0 0 0 1px rgba(212,175,55,.15),0 8px 28px rgba(212,175,55,.12);
+    --sidebar-w:268px;
   }
-  html,body{margin:0;padding:0;background:var(--background);color:var(--foreground);font-family:'Vazirmatn',Tahoma,sans-serif;height:100%;-webkit-font-smoothing:antialiased;}
-  #root{min-height:100vh;height:100%;}
-  #status{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted-foreground);font-size:15px;background:var(--background);z-index:5;text-align:center;padding:20px;}
-  #errbox{position:fixed;top:0;left:0;right:0;background:#3a0d0d;color:#ffb3a7;font-family:ui-monospace,monospace;font-size:12px;white-space:pre-wrap;padding:12px;z-index:99999;display:none;direction:ltr;text-align:left;max-height:50vh;overflow:auto;}
-  .app-layout{display:flex;width:100%;min-height:100vh;box-sizing:border-box;}
-  .app-main{flex:1 1 auto;min-width:0;width:100%;}
-  .app-sidebar{flex:0 0 260px;max-width:280px;}
-  ::selection{background:rgba(212,175,55,.28);color:#fff;}
-  input,button,select,textarea{font-family:inherit;}
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--background);color:var(--foreground);font-family:'Vazirmatn',system-ui,Tahoma,sans-serif;height:100%;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  #root{min-height:100vh;height:100%}
+  #status{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted-foreground);font-size:15px;background:var(--background);z-index:5;text-align:center;padding:20px}
+  #errbox{position:fixed;top:0;left:0;right:0;background:#3a0d0d;color:#ffb3a7;font-family:ui-monospace,monospace;font-size:12px;white-space:pre-wrap;padding:12px;z-index:99999;display:none;direction:ltr;text-align:left;max-height:50vh;overflow:auto}
+  .app-layout{display:flex;width:100%;min-height:100vh}
+  .app-main{flex:1 1 auto;min-width:0;width:100%}
+  .app-sidebar{flex:0 0 var(--sidebar-w);max-width:var(--sidebar-w)}
+  ::selection{background:rgba(212,175,55,.3);color:#fff}
+  input,button,select,textarea{font-family:inherit}
+  button{cursor:pointer}
+  /* Scrollbar */
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:99px}
+  ::-webkit-scrollbar-thumb:hover{background:rgba(212,175,55,.35)}
 </style>
 </head>
 <body>
@@ -1239,7 +1254,7 @@ function MarketDashboard() {
     quotedLabel,
     refLabel
   }) => /*#__PURE__*/React.createElement("section", {
-    style: styles.panel
+    className: "ui-panel", style: styles.panel
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.panelTitle
   }, PAGE_META[page].title), /*#__PURE__*/React.createElement("p", {
@@ -1317,7 +1332,7 @@ function MarketDashboard() {
     getMarket,
     getRef
   }) => /*#__PURE__*/React.createElement("section", {
-    style: styles.panel
+    className: "ui-panel", style: styles.panel
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.panelTitle
   }, PAGE_META[page].title), /*#__PURE__*/React.createElement("p", {
@@ -1554,103 +1569,212 @@ function MarketDashboard() {
   }, /*#__PURE__*/React.createElement("style", null, `
         @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
-        * { box-sizing: border-box; }
         .mkt-root {
           font-family: 'Vazirmatn', system-ui, sans-serif;
           background:
-            radial-gradient(1200px 500px at 100% -10%, rgba(212,175,55,0.07), transparent 55%),
-            radial-gradient(900px 400px at 0% 100%, rgba(53,196,140,0.04), transparent 50%),
-            var(--background, #0a0f1a);
+            radial-gradient(1100px 520px at 110% -15%, rgba(212,175,55,0.09), transparent 55%),
+            radial-gradient(800px 420px at -10% 110%, rgba(53,196,140,0.05), transparent 50%),
+            radial-gradient(600px 300px at 50% 0%, rgba(80,120,255,0.04), transparent 60%),
+            var(--background);
+          min-height: 100%;
         }
         .mkt-mono {
-          font-family: 'JetBrains Mono', 'Roboto Mono', ui-monospace, monospace;
+          font-family: 'JetBrains Mono', ui-monospace, monospace;
           font-variant-numeric: tabular-nums lining-nums;
-          letter-spacing: -0.01em;
+          letter-spacing: -0.015em;
+        }
+
+        /* ---- Component: Card / Panel ---- */
+        .ui-panel {
+          position: relative;
+          overflow: hidden;
+        }
+        .ui-panel::before {
+          content: "";
+          position: absolute;
+          inset: 0 0 auto 0;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(212,175,55,0.35), transparent);
+          pointer-events: none;
+        }
+        .ui-card, .exchange-grid > div {
+          transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+        }
+        .exchange-grid > div:hover, .ui-card:hover {
+          border-color: rgba(212,175,55,0.4) !important;
+          box-shadow: var(--shadow-glow) !important;
+          transform: translateY(-1px);
+        }
+
+        /* ---- Component: Badge ---- */
+        .ui-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 11px;
+          font-weight: 700;
+          padding: 4px 11px;
+          border-radius: var(--radius-full);
+          letter-spacing: 0.01em;
+          line-height: 1.2;
+          white-space: nowrap;
+        }
+        .ui-badge-live {
+          background: rgba(53,196,140,0.14);
+          color: #35C48C;
+          border: 1px solid rgba(53,196,140,0.4);
+          box-shadow: 0 0 12px rgba(53,196,140,0.12);
+        }
+        .ui-badge-stale {
+          background: rgba(212,175,55,0.12);
+          color: #D4AF37;
+          border: 1px solid rgba(212,175,55,0.4);
+        }
+        .ui-badge-empty {
+          background: rgba(240,85,63,0.12);
+          color: #F0553F;
+          border: 1px solid rgba(240,85,63,0.35);
+        }
+        .ui-badge-dot::before {
+          content: "";
+          width: 6px; height: 6px;
+          border-radius: 50%;
+          background: currentColor;
+          box-shadow: 0 0 6px currentColor;
+        }
+
+        /* ---- Component: Button ---- */
+        .ui-btn-primary {
+          background: linear-gradient(180deg, var(--primary-hover) 0%, var(--primary) 100%) !important;
+          color: var(--primary-foreground) !important;
+          border: none !important;
+          border-radius: var(--radius-sm) !important;
+          box-shadow: 0 2px 14px rgba(212,175,55,0.32) !important;
+          font-weight: 700 !important;
+        }
+        .ui-btn-primary:hover {
+          filter: brightness(1.06);
+          box-shadow: 0 4px 18px rgba(212,175,55,0.42) !important;
+        }
+        .ui-btn-primary:active { transform: translateY(1px); }
+        .ui-btn-ghost {
+          background: var(--card) !important;
+          color: var(--muted-foreground) !important;
+          border: 1px solid var(--border) !important;
+          border-radius: var(--radius-sm) !important;
+        }
+        .ui-btn-ghost:hover {
+          border-color: rgba(212,175,55,0.4) !important;
+          color: var(--foreground) !important;
+          background: var(--accent) !important;
+        }
+
+        /* ---- Component: Nav ---- */
+        .nav-btn {
+          transition: background .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .1s ease;
+          border-radius: 12px !important;
+          position: relative;
+        }
+        .nav-btn:hover {
+          background: rgba(212,175,55,0.07) !important;
+          border-color: rgba(212,175,55,0.28) !important;
+          color: #F4F6F9 !important;
+        }
+        .nav-btn.is-active {
+          background: linear-gradient(90deg, rgba(212,175,55,0.18) 0%, rgba(212,175,55,0.05) 100%) !important;
+          color: var(--primary) !important;
+          border-color: rgba(212,175,55,0.45) !important;
+          box-shadow: inset 3px 0 0 var(--primary);
+        }
+
+        /* ---- Component: Logo mark ---- */
+        .ui-logo-mark {
+          width: 40px; height: 40px;
+          display: inline-flex; align-items: center; justify-content: center;
+          border-radius: 12px;
+          background: linear-gradient(145deg, rgba(212,175,55,0.22), rgba(212,175,55,0.06));
+          border: 1px solid rgba(212,175,55,0.35);
+          color: var(--primary);
+          font-size: 18px; font-weight: 800;
+          box-shadow: 0 4px 16px rgba(212,175,55,0.15);
+        }
+
+        /* ---- Component: Table ---- */
+        .ui-table-wrap {
+          border-radius: var(--radius);
+          overflow: hidden;
+          border: 1px solid var(--border);
+          background: rgba(0,0,0,0.15);
+        }
+        .ui-table-wrap table { width: 100%; border-collapse: collapse; }
+        .row-hover { transition: background .12s ease; }
+        .row-hover:hover { background: rgba(255,255,255,0.035); }
+        .th-sort { cursor: pointer; user-select: none; }
+        .th-sort:hover { color: var(--primary); }
+
+        /* ---- Component: Input ---- */
+        .ui-input, input.mkt-mono, select {
+          transition: border-color .15s ease, box-shadow .15s ease;
+        }
+        .ui-input:focus, input:focus, select:focus {
+          border-color: rgba(212,175,55,0.55) !important;
+          box-shadow: 0 0 0 3px rgba(212,175,55,0.12) !important;
+          outline: none !important;
+        }
+
+        /* ---- Asset cards ---- */
+        .asset-card {
+          transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+          box-shadow: var(--shadow-sm);
+        }
+        .asset-card:hover {
+          transform: translateY(-3px);
+          border-color: rgba(212,175,55,0.55) !important;
+          box-shadow: var(--shadow-glow);
+        }
+        .asset-card.selected {
+          border-color: var(--primary) !important;
+          box-shadow: 0 0 0 1px rgba(212,175,55,0.5) inset, var(--shadow);
+        }
+
+        .range-btn { transition: background .15s ease, color .15s ease, box-shadow .15s ease; border-radius: 8px !important; }
+        .range-btn:hover { background: rgba(212,175,55,0.12); color: #EDEFF2; }
+        .range-btn.active {
+          background: linear-gradient(180deg, var(--primary-hover), var(--primary));
+          color: var(--primary-foreground);
+          box-shadow: 0 2px 10px rgba(212,175,55,0.35);
         }
 
         @keyframes ticker-scroll {
           0% { transform: translateX(0); }
           100% { transform: translateX(50%); }
         }
-        .ticker-track {
-          display: flex;
-          width: max-content;
-          animation: ticker-scroll 38s linear infinite;
-        }
+        .ticker-track { display: flex; width: max-content; animation: ticker-scroll 38s linear infinite; }
         .mkt-root:hover .ticker-track { animation-play-state: paused; }
 
         @keyframes spin-refresh {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-        .spin { animation: spin-refresh 0.8s linear infinite; }
+        .spin { animation: spin-refresh .8s linear infinite; }
 
-        .asset-card {
-          transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-          box-shadow: var(--shadow-sm);
+        @keyframes pulse-dot {
+          0%, 100% { opacity: 1; }
+          50% { opacity: .45; }
         }
-        .asset-card:hover {
-          transform: translateY(-2px);
-          border-color: rgba(212,175,55,0.55) !important;
-          box-shadow: 0 10px 28px rgba(212,175,55,0.12);
-        }
-        .asset-card.selected {
-          border-color: #D4AF37 !important;
-          box-shadow: 0 0 0 1px rgba(212,175,55,0.5) inset, var(--shadow);
-        }
-
-        .range-btn { transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; }
-        .range-btn:hover { background: rgba(212,175,55,0.12); color: #EDEFF2; }
-        .range-btn.active {
-          background: linear-gradient(180deg, #e0c04a 0%, #D4AF37 100%);
-          color: #0B1220;
-          box-shadow: 0 2px 8px rgba(212,175,55,0.35);
-        }
-
-        /* shadcn-like nav item */
-        .nav-btn {
-          transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-          border-radius: 10px !important;
-        }
-        .nav-btn:hover {
-          background: rgba(212,175,55,0.08) !important;
-          border-color: rgba(212,175,55,0.35) !important;
-          color: #F4F6F9 !important;
-        }
-
-        .row-hover { transition: background 0.12s ease; }
-        .row-hover:hover { background: rgba(255,255,255,0.035); }
-
-        .th-sort { cursor: pointer; user-select: none; }
-        .th-sort:hover { color: #D4AF37; }
-
-        /* Card / panel polish */
-        .exchange-grid > div,
-        .ui-card {
-          transition: border-color 0.15s ease, box-shadow 0.15s ease;
-        }
-        .exchange-grid > div:hover {
-          border-color: rgba(212,175,55,0.35) !important;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.28);
-        }
-
-        /* Tables: denser kit look */
-        table { border-spacing: 0; }
-        thead th {
-          text-transform: none;
-          letter-spacing: 0.01em;
-        }
+        .ui-badge-live.ui-badge-dot::before { animation: pulse-dot 1.8s ease infinite; }
 
         @media (max-width: 860px) {
           .app-layout { flex-direction: column !important; }
           .app-sidebar {
             width: 100% !important; max-width: none !important; flex: none !important;
-            border-left: none !important; border-bottom: 1px solid var(--border, #2a3650) !important;
+            border-left: none !important; border-bottom: 1px solid var(--border) !important;
             position: static !important; padding: 12px 14px !important; min-height: auto !important;
-            backdrop-filter: none !important;
+            box-shadow: none !important;
           }
           .app-sidebar-nav { flex-direction: row !important; flex-wrap: wrap !important; gap: 6px !important; }
           .app-main { padding: 14px 12px 32px !important; }
+          .nav-btn.is-active { box-shadow: none !important; }
         }
         @media (max-width: 640px) {
           .hide-mobile { display: none; }
@@ -1658,22 +1782,16 @@ function MarketDashboard() {
         }
 
         .focus-ring:focus-visible {
-          outline: 2px solid var(--ring, #D4AF37);
+          outline: 2px solid var(--ring);
           outline-offset: 2px;
         }
 
-        /* Primary button hover */
-        button:not(.nav-btn):not(.range-btn) {
-          transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
-        }
-
         @media (prefers-reduced-motion: reduce) {
-          .ticker-track { animation: none; }
-          .spin { animation: none; }
-          .asset-card, .nav-btn, .range-btn { transition: none; }
+          .ticker-track, .spin, .ui-badge-live.ui-badge-dot::before { animation: none; }
+          .asset-card, .nav-btn, .range-btn, .exchange-grid > div { transition: none; }
         }
       `), hoverTip.show && /*#__PURE__*/React.createElement("div", {
-    className: "mkt-mono",
+    className: "mkt-mono ui-tooltip",
     dir: "ltr",
     style: {
       position: "fixed",
@@ -1681,17 +1799,18 @@ function MarketDashboard() {
       top: hoverTip.y + 14,
       zIndex: 9999,
       pointerEvents: "none",
-      background: "#121B2E",
-      border: "1px solid #D4AF37",
+      background: "var(--popover, #121c2c)",
+      border: "1px solid rgba(212,175,55,0.55)",
       color: "#D4AF37",
-      borderRadius: 8,
-      padding: "5px 10px",
+      borderRadius: 10,
+      padding: "7px 12px",
       fontSize: 12.5,
       fontWeight: 700,
-      boxShadow: "0 6px 20px rgba(0,0,0,0.4)",
+      boxShadow: "var(--shadow-lg)",
       whiteSpace: "pre",
       textAlign: "right",
-      lineHeight: 1.7
+      lineHeight: 1.7,
+      backdropFilter: "blur(8px)"
     }
   }, hoverTip.text), /*#__PURE__*/React.createElement("div", {
     style: styles.layout,
@@ -1702,6 +1821,7 @@ function MarketDashboard() {
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.sidebarBrand
   }, /*#__PURE__*/React.createElement("span", {
+    className: "ui-logo-mark",
     style: styles.sidebarLogo
   }, "﷼"), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1713,10 +1833,10 @@ function MarketDashboard() {
     style: styles.sidebarBrandText
   }, "تابلوی بازار"), appVersion && /*#__PURE__*/React.createElement("span", {
     title: appVersion.gitSha ? `git ${appVersion.gitSha}` : "",
+    className: "mkt-mono",
     style: {
       fontSize: 10,
-      color: "#8B96A8",
-      fontFamily: "ui-monospace, monospace",
+      color: "var(--muted-foreground)",
       letterSpacing: 0.3
     }
   }, "v", appVersion.version, appVersion.gitSha ? ` · ${String(appVersion.gitSha).slice(0, 7)}` : ""))), /*#__PURE__*/React.createElement("nav", {
@@ -1728,7 +1848,7 @@ function MarketDashboard() {
     return /*#__PURE__*/React.createElement("button", {
       key: item.id,
       onClick: () => navigate(item.id),
-      className: "nav-btn focus-ring",
+      className: "nav-btn focus-ring" + (active ? " is-active" : ""),
       style: {
         ...styles.sidebarBtn,
         ...(active ? styles.sidebarBtnActive : {})
@@ -1747,7 +1867,8 @@ function MarketDashboard() {
     className: "mkt-root app-main",
     style: styles.container
   }, /*#__PURE__*/React.createElement("header", {
-    style: styles.header
+    style: styles.header,
+    className: "ui-page-header"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", {
     style: styles.title
   }, PAGE_META[page].title), /*#__PURE__*/React.createElement("p", {
@@ -1756,16 +1877,8 @@ function MarketDashboard() {
     style: styles.headerRight
   }, /*#__PURE__*/React.createElement("span", {
     title: dataMode === "live" ? "داده‌ها زنده از API دریافت می‌شوند" : dataMode === "stale" ? "منبع موقتاً در دسترس نیست — آخرین قیمت معتبر نمایش داده می‌شود" : "هنوز دادهٔ زنده‌ای دریافت نشده",
-    style: {
-      fontSize: 11,
-      fontWeight: 700,
-      padding: "3px 10px",
-      borderRadius: 999,
-      background: dataMode === "live" ? "rgba(53,196,140,0.15)" : dataMode === "stale" ? "rgba(212,175,55,0.15)" : "rgba(240,85,63,0.15)",
-      color: dataMode === "live" ? "#35C48C" : dataMode === "stale" ? "#D4AF37" : "#F0553F",
-      border: `1px solid ${dataMode === "live" ? "rgba(53,196,140,0.4)" : dataMode === "stale" ? "rgba(212,175,55,0.4)" : "rgba(240,85,63,0.4)"}`
-    }
-  }, dataMode === "live" ? "● زنده" : dataMode === "stale" ? "● آخرین معتبر" : "● بدون داده"), /*#__PURE__*/React.createElement("span", {
+    className: "ui-badge ui-badge-dot " + (dataMode === "live" ? "ui-badge-live" : dataMode === "stale" ? "ui-badge-stale" : "ui-badge-empty")
+  }, dataMode === "live" ? "زنده" : dataMode === "stale" ? "آخرین معتبر" : "بدون داده"), /*#__PURE__*/React.createElement("span", {
     style: styles.updatedLabel
   }, /*#__PURE__*/React.createElement(Clock3, {
     size: 14,
@@ -1775,14 +1888,14 @@ function MarketDashboard() {
   }), "بروزرسانی: ", timeAgoFa(lastUpdated)), /*#__PURE__*/React.createElement("button", {
     onClick: handleRefresh,
     style: styles.refreshBtn,
-    className: "focus-ring",
+    className: "focus-ring ui-btn-primary",
     "aria-label": "بروزرسانی قیمت‌ها"
   }, /*#__PURE__*/React.createElement(RefreshCw, {
     size: 16,
     className: loading ? "spin" : ""
   }), "بروزرسانی"), /*#__PURE__*/React.createElement("button", {
     onClick: () => navigate("settings"),
-    className: "focus-ring nav-btn",
+    className: "focus-ring nav-btn ui-btn-ghost",
     style: {
       ...styles.gearBtn,
       ...(page === "settings" ? {
@@ -1797,7 +1910,7 @@ function MarketDashboard() {
   })))), page === "market" && /*#__PURE__*/React.createElement(React.Fragment, null, error && /*#__PURE__*/React.createElement("div", {
     style: styles.errorBanner
   }, error), /*#__PURE__*/React.createElement("section", {
-    style: styles.panel
+    className: "ui-panel", style: styles.panel
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -1867,7 +1980,7 @@ function MarketDashboard() {
     const aedSellRank = exchangeAedSellRank[ex.id];
     return /*#__PURE__*/React.createElement("div", {
       key: ex.id,
-      style: styles.exchangeCard
+      className: "ui-card", style: styles.exchangeCard
     }, /*#__PURE__*/React.createElement("div", {
       style: styles.exchangeCardHeader
     }, /*#__PURE__*/React.createElement("span", {
@@ -2051,7 +2164,7 @@ function MarketDashboard() {
       lineHeight: 1.9
     }
   }, "«قیمت واقعی دلار» (ردیف طلایی‌رنگ) از ضرب قیمت درهم همون صرافی در نرخ ثابت پابند درهم/دلار (۳.۶۷۲۵) به‌دست میاد. «تبدیل طلای جهانی» هم = قیمت انس جهانی × دلار همون صرافی ÷ ۳۱.۱۰۳ × ۰.۷۵ (طلای ۱۸ عیار هر گرم). · بروزرسانی: ", timeAgoFa(exchangeUpdated)))), page === "bubbles" && /*#__PURE__*/React.createElement("section", {
-    style: styles.panel
+    className: "ui-panel", style: styles.panel
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.panelTitle
   }, "حباب‌ها به تفکیک صرافی"), /*#__PURE__*/React.createElement("p", {
@@ -2171,7 +2284,7 @@ function MarketDashboard() {
     const dollarRate = avgUsdSell || bestSellVal || 0; // USD→Toman rate for conversion
     const eq24From = usdOunce => usdOunce && dollarRate ? usdOunce * dollarRate / setTroyOunce * 1000 : null;
     return /*#__PURE__*/React.createElement("section", {
-      style: styles.panel
+      className: "ui-panel", style: styles.panel
     }, /*#__PURE__*/React.createElement("div", {
       style: styles.panelTitle
     }, PAGE_META[page].title), /*#__PURE__*/React.createElement("p", {
@@ -2291,7 +2404,7 @@ function MarketDashboard() {
       }
     });
     return /*#__PURE__*/React.createElement("section", {
-      style: styles.panel
+      className: "ui-panel", style: styles.panel
     }, /*#__PURE__*/React.createElement("div", {
       style: styles.panelTitle
     }, PAGE_META[page].title), /*#__PURE__*/React.createElement("p", {
@@ -2311,8 +2424,10 @@ function MarketDashboard() {
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         ...styles.bestCard,
-        borderColor: "rgba(53,196,140,0.5)"
-      }
+        borderColor: "rgba(53,196,140,0.45)",
+        boxShadow: "0 0 0 1px rgba(53,196,140,0.12), var(--shadow-sm)"
+      },
+      className: "ui-card"
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 12,
@@ -2336,8 +2451,10 @@ function MarketDashboard() {
     }, bestBuyEx || "—")), /*#__PURE__*/React.createElement("div", {
       style: {
         ...styles.bestCard,
-        borderColor: "rgba(240,85,63,0.5)"
-      }
+        borderColor: "rgba(240,85,63,0.45)",
+        boxShadow: "0 0 0 1px rgba(240,85,63,0.12), var(--shadow-sm)"
+      },
+      className: "ui-card"
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 12,
@@ -2407,7 +2524,7 @@ function MarketDashboard() {
     const dollarRate = avgUsdSell || bestSellVal || 0; // USD→Toman rate for conversion
     const eq18From = usdOunce => usdOunce && dollarRate ? usdOunce * dollarRate / setTroyOunce * setPurity * 1000 : null;
     return /*#__PURE__*/React.createElement("section", {
-      style: styles.panel
+      className: "ui-panel", style: styles.panel
     }, /*#__PURE__*/React.createElement("div", {
       style: styles.panelTitle
     }, PAGE_META[page].title), /*#__PURE__*/React.createElement("p", {
@@ -2527,7 +2644,7 @@ function MarketDashboard() {
       }
     });
     return /*#__PURE__*/React.createElement("section", {
-      style: styles.panel
+      className: "ui-panel", style: styles.panel
     }, /*#__PURE__*/React.createElement("div", {
       style: styles.panelTitle
     }, PAGE_META[page].title), /*#__PURE__*/React.createElement("p", {
@@ -2547,8 +2664,10 @@ function MarketDashboard() {
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         ...styles.bestCard,
-        borderColor: "rgba(53,196,140,0.5)"
-      }
+        borderColor: "rgba(53,196,140,0.45)",
+        boxShadow: "0 0 0 1px rgba(53,196,140,0.12), var(--shadow-sm)"
+      },
+      className: "ui-card"
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 12,
@@ -2572,8 +2691,10 @@ function MarketDashboard() {
     }, bestBuyEx || "—")), /*#__PURE__*/React.createElement("div", {
       style: {
         ...styles.bestCard,
-        borderColor: "rgba(240,85,63,0.5)"
-      }
+        borderColor: "rgba(240,85,63,0.45)",
+        boxShadow: "0 0 0 1px rgba(240,85,63,0.12), var(--shadow-sm)"
+      },
+      className: "ui-card"
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 12,
@@ -2640,7 +2761,7 @@ function MarketDashboard() {
       }
     }, "بروزرسانی: ", timeAgoFa(exchangeUpdated)));
   })(), page === "baed" && /*#__PURE__*/React.createElement("section", {
-    style: styles.panel
+    className: "ui-panel", style: styles.panel
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.panelTitle
   }, PAGE_META[page].title), /*#__PURE__*/React.createElement("p", {
@@ -2737,7 +2858,7 @@ function MarketDashboard() {
       marginTop: 12
     }
   }, "نرخ پابند درهم/دلار: ", setAedPeg, " · بروزرسانی: ", timeAgoFa(exchangeUpdated))), page === "busd" && /*#__PURE__*/React.createElement("section", {
-    style: styles.panel
+    className: "ui-panel", style: styles.panel
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.panelTitle
   }, PAGE_META[page].title), /*#__PURE__*/React.createElement("p", {
@@ -2834,7 +2955,7 @@ function MarketDashboard() {
       marginTop: 12
     }
   }, "نرخ پابند درهم/دلار: ", setAedPeg, " · بروزرسانی: ", timeAgoFa(exchangeUpdated))), page === "formulas" && /*#__PURE__*/React.createElement("section", {
-    style: styles.panel
+    className: "ui-panel", style: styles.panel
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.panelTitle
   }, "فرمول‌های محاسباتی سامانه"), /*#__PURE__*/React.createElement("p", {
@@ -2845,7 +2966,7 @@ function MarketDashboard() {
       margin: "6px 0 18px"
     }
   }, "همه‌ی فرمول‌هایی که در محاسبات سایت استفاده می‌شن، اینجا یکجا جمع شدن. مقادیر داخل فرمول‌ها از تنظیمات فعلی خوانده می‌شن."), /*#__PURE__*/React.createElement("div", {
-    style: styles.formulaCard
+    className: "ui-card", style: styles.formulaCard
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13.5,
@@ -2899,7 +3020,7 @@ function MarketDashboard() {
       minWidth: 160
     }
   }, manualDollar && Number(manualDollar) > 0 ? formatNum(Math.round(Number(manualDollar) / setAedPeg)) + " تومان" : "—"))), /*#__PURE__*/React.createElement("div", {
-    style: styles.formulaCard
+    className: "ui-card", style: styles.formulaCard
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13.5,
@@ -2961,7 +3082,7 @@ function MarketDashboard() {
     const ounceFrom18 = manualGold18 && Number(manualGold18) > 0 && dollarRate ? Number(manualGold18) * setTroyOunce / (dollarRate * setPurity) : null;
     const ounceFrom24 = manualGold24 && Number(manualGold24) > 0 && dollarRate ? Number(manualGold24) * setTroyOunce / dollarRate : null;
     return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-      style: styles.formulaCard
+      className: "ui-card", style: styles.formulaCard
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 13.5,
@@ -3009,7 +3130,7 @@ function MarketDashboard() {
         minWidth: 140
       }
     }, ounceFrom18 ? formatNum(Math.round(ounceFrom18)) + " $" : "—"))), /*#__PURE__*/React.createElement("div", {
-      style: styles.formulaCard
+      className: "ui-card", style: styles.formulaCard
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 13.5,
@@ -3105,7 +3226,7 @@ function MarketDashboard() {
     d: "فاصله قیمت هر صرافی از میانگین بازار داخلی."
   }].map((item, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
-    style: styles.formulaCard
+    className: "ui-card", style: styles.formulaCard
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13.5,
@@ -3140,7 +3261,7 @@ function MarketDashboard() {
       lineHeight: 1.9
     }
   }, "مقادیر جاری: پابند درهم = ", setAedPeg, " · عیار = ", setPurity, " · ثابت اونس = ", setTroyOunce, " · انس مرجع = ", formatNum(ounceUsd != null ? Math.round(ounceUsd) : null), " دلار", useManualOunce ? " (دستی)" : " (زنده)", ".")), page === "alerts" && /*#__PURE__*/React.createElement("section", {
-    style: styles.panel
+    className: "ui-panel", style: styles.panel
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.panelTitle
   }, "هشدارهای قیمتی"), /*#__PURE__*/React.createElement("p", {
@@ -3261,7 +3382,7 @@ function MarketDashboard() {
       size: 14
     }))));
   }))), page === "settings" && /*#__PURE__*/React.createElement("section", {
-    style: styles.panel
+    className: "ui-panel", style: styles.panel
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.panelTitle
   }, "تنظیمات سامانه"), /*#__PURE__*/React.createElement("div", {
@@ -3809,11 +3930,11 @@ const styles = {
     width: "80%"
   },
   panel: {
-    background: "linear-gradient(180deg, rgba(22,32,51,0.95) 0%, rgba(18,26,43,0.98) 100%)",
-    border: "1px solid var(--border, #2a3650)",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
+    background: "linear-gradient(165deg, rgba(20,31,48,0.98) 0%, rgba(16,24,38,0.99) 55%, rgba(12,18,30,1) 100%)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius-lg, 18px)",
+    padding: 22,
+    marginBottom: 22,
     boxShadow: "var(--shadow)"
   },
   panelHeader: {
@@ -3885,9 +4006,9 @@ const styles = {
     gap: 16
   },
   exchangeCard: {
-    background: "var(--card-elevated, #162033)",
-    border: "1px solid var(--border, #2a3650)",
-    borderRadius: 14,
+    background: "linear-gradient(160deg, rgba(22,34,52,0.95) 0%, rgba(16,26,40,0.98) 100%)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius, 14px)",
     padding: 16,
     boxShadow: "var(--shadow-sm)"
   },
@@ -4075,14 +4196,13 @@ const styles = {
     borderBottom: "1px solid var(--border, #2a3650)"
   },
   sidebarLogo: {
-    fontSize: 22,
-    color: "#D4AF37",
-    fontWeight: 800
+    // visual handled by .ui-logo-mark
   },
   sidebarBrandText: {
-    fontSize: 16,
+    fontSize: 16.5,
     fontWeight: 800,
-    letterSpacing: "-0.02em"
+    letterSpacing: "-0.02em",
+    color: "var(--foreground)"
   },
   sidebarNav: {
     display: "flex",
