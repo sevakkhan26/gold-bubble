@@ -1,10 +1,12 @@
 # Gold Market Live (Python + PostgreSQL)
 
-**Version:** `1.1.0` (semver in `app/version.py` + Docker `APP_VERSION` / `APP_GIT_SHA`)
+**Version:** `1.1.2` (semver in `app/version.py` + Docker `APP_VERSION` / `APP_GIT_SHA`)
 
 Full backend rewrite in **Python (FastAPI)** with **price history** for every asset/field stored in **PostgreSQL** (or SQLite for local dev).
 
-**Frontend:** [shadcn/ui](https://ui.shadcn.com) + Vite + React + Tailwind (`frontend/`), built into `public/` and served by FastAPI. Live data from `GET /api/prices`, `GET /api/health`, `GET /api/debug`.
+**Frontend (production):** full original dashboard in `public/index.html` (all pages + settings content) served by FastAPI, wired to live `GET /api/prices`.
+
+**Frontend (WIP):** `frontend/` holds an experimental Vite + shadcn/ui rewrite — **not** used in production until every page/settings section is ported without content loss.
 
 ## Deploy / CI-CD (same pattern as Iran Market Terminal & OTC)
 
