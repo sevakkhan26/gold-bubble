@@ -226,15 +226,12 @@ export default function App() {
   return (
     <div dir="rtl" lang="fa" className="app-shell">
       <aside className="app-sidebar">
-        <div className="flex items-center gap-3 border-b border-border px-4 py-4">
-          <div className="logo-mark">﷼</div>
-          <div className="min-w-0">
-            <div className="text-body-lg font-bold tracking-tight">تابلوی بازار</div>
-            <div className="font-mono-nums text-caption text-muted-foreground">
-              v{prices?.version || health?.version || "—"}
-              {(prices?.gitSha || health?.gitSha) &&
-                ` · ${String(prices?.gitSha || health?.gitSha).slice(0, 7)}`}
-            </div>
+        <div className="border-b border-border px-4 py-4">
+          <div className="text-body-lg font-bold tracking-tight">تابلوی بازار</div>
+          <div className="font-mono-nums text-caption text-muted-foreground">
+            v{prices?.version || health?.version || "—"}
+            {(prices?.gitSha || health?.gitSha) &&
+              ` · ${String(prices?.gitSha || health?.gitSha).slice(0, 7)}`}
           </div>
         </div>
         <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
