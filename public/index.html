@@ -8,13 +8,38 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  html,body{margin:0;padding:0;background:#0B1220;color:#EDEFF2;font-family:'Vazirmatn',Tahoma,sans-serif;height:100%;}
+  /* Design tokens — shadcn-inspired dark gold theme (UI only) */
+  :root{
+    --background:#0a0f1a;
+    --foreground:#f4f6f9;
+    --card:#121a2b;
+    --card-elevated:#162033;
+    --popover:#121a2b;
+    --primary:#d4af37;
+    --primary-foreground:#0a0f1a;
+    --secondary:#1a2438;
+    --muted:#1a2438;
+    --muted-foreground:#8b96a8;
+    --accent:#1e2a40;
+    --destructive:#f0553f;
+    --success:#35c48c;
+    --border:#2a3650;
+    --input:#1a2438;
+    --ring:#d4af37;
+    --radius:0.75rem;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+    --shadow:0 4px 16px rgba(0,0,0,.35);
+    --shadow-lg:0 12px 40px rgba(0,0,0,.45);
+  }
+  html,body{margin:0;padding:0;background:var(--background);color:var(--foreground);font-family:'Vazirmatn',Tahoma,sans-serif;height:100%;-webkit-font-smoothing:antialiased;}
   #root{min-height:100vh;height:100%;}
-  #status{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#8B96A8;font-size:15px;background:#0B1220;z-index:5;text-align:center;padding:20px;}
-  #errbox{position:fixed;top:0;left:0;right:0;background:#3a0d0d;color:#ffb3a7;font-family:monospace;font-size:12px;white-space:pre-wrap;padding:12px;z-index:99999;display:none;direction:ltr;text-align:left;max-height:50vh;overflow:auto;}
+  #status{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted-foreground);font-size:15px;background:var(--background);z-index:5;text-align:center;padding:20px;}
+  #errbox{position:fixed;top:0;left:0;right:0;background:#3a0d0d;color:#ffb3a7;font-family:ui-monospace,monospace;font-size:12px;white-space:pre-wrap;padding:12px;z-index:99999;display:none;direction:ltr;text-align:left;max-height:50vh;overflow:auto;}
   .app-layout{display:flex;width:100%;min-height:100vh;box-sizing:border-box;}
   .app-main{flex:1 1 auto;min-width:0;width:100%;}
-  .app-sidebar{flex:0 0 250px;max-width:280px;}
+  .app-sidebar{flex:0 0 260px;max-width:280px;}
+  ::selection{background:rgba(212,175,55,.28);color:#fff;}
+  input,button,select,textarea{font-family:inherit;}
 </style>
 </head>
 <body>
@@ -1527,11 +1552,21 @@ function MarketDashboard() {
     lang: "fa",
     style: styles.root
   }, /*#__PURE__*/React.createElement("style", null, `
-        @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
         * { box-sizing: border-box; }
-        .mkt-root { font-family: 'Vazirmatn', sans-serif; }
-        .mkt-mono { font-family: 'Roboto Mono', monospace; font-variant-numeric: lining-nums; }
+        .mkt-root {
+          font-family: 'Vazirmatn', system-ui, sans-serif;
+          background:
+            radial-gradient(1200px 500px at 100% -10%, rgba(212,175,55,0.07), transparent 55%),
+            radial-gradient(900px 400px at 0% 100%, rgba(53,196,140,0.04), transparent 50%),
+            var(--background, #0a0f1a);
+        }
+        .mkt-mono {
+          font-family: 'JetBrains Mono', 'Roboto Mono', ui-monospace, monospace;
+          font-variant-numeric: tabular-nums lining-nums;
+          letter-spacing: -0.01em;
+        }
 
         @keyframes ticker-scroll {
           0% { transform: translateX(0); }
@@ -1551,34 +1586,70 @@ function MarketDashboard() {
         .spin { animation: spin-refresh 0.8s linear infinite; }
 
         .asset-card {
-          transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+          transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+          box-shadow: var(--shadow-sm);
         }
         .asset-card:hover {
-          transform: translateY(-3px);
-          border-color: #D4AF37;
-          box-shadow: 0 8px 24px rgba(212,175,55,0.12);
+          transform: translateY(-2px);
+          border-color: rgba(212,175,55,0.55) !important;
+          box-shadow: 0 10px 28px rgba(212,175,55,0.12);
         }
         .asset-card.selected {
-          border-color: #D4AF37;
-          box-shadow: 0 0 0 1px #D4AF37 inset;
+          border-color: #D4AF37 !important;
+          box-shadow: 0 0 0 1px rgba(212,175,55,0.5) inset, var(--shadow);
         }
 
-        .range-btn { transition: background 0.15s ease, color 0.15s ease; }
-        .range-btn:hover { background: rgba(212,175,55,0.14); }
-        .range-btn.active { background: #D4AF37; color: #0B1220; }
+        .range-btn { transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; }
+        .range-btn:hover { background: rgba(212,175,55,0.12); color: #EDEFF2; }
+        .range-btn.active {
+          background: linear-gradient(180deg, #e0c04a 0%, #D4AF37 100%);
+          color: #0B1220;
+          box-shadow: 0 2px 8px rgba(212,175,55,0.35);
+        }
 
-        .nav-btn { transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
-        .nav-btn:hover { border-color: #D4AF37; color: #EDEFF2; }
+        /* shadcn-like nav item */
+        .nav-btn {
+          transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+          border-radius: 10px !important;
+        }
+        .nav-btn:hover {
+          background: rgba(212,175,55,0.08) !important;
+          border-color: rgba(212,175,55,0.35) !important;
+          color: #F4F6F9 !important;
+        }
 
-        .row-hover:hover { background: rgba(255,255,255,0.03); }
+        .row-hover { transition: background 0.12s ease; }
+        .row-hover:hover { background: rgba(255,255,255,0.035); }
 
         .th-sort { cursor: pointer; user-select: none; }
         .th-sort:hover { color: #D4AF37; }
 
+        /* Card / panel polish */
+        .exchange-grid > div,
+        .ui-card {
+          transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .exchange-grid > div:hover {
+          border-color: rgba(212,175,55,0.35) !important;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.28);
+        }
+
+        /* Tables: denser kit look */
+        table { border-spacing: 0; }
+        thead th {
+          text-transform: none;
+          letter-spacing: 0.01em;
+        }
+
         @media (max-width: 860px) {
           .app-layout { flex-direction: column !important; }
-          .app-sidebar { width: 100% !important; max-width: none !important; flex: none !important; border-left: none !important; border-bottom: 1px solid #23304A; position: static !important; padding: 12px 14px !important; min-height: auto !important; }
-          .app-sidebar-nav { flex-direction: row !important; flex-wrap: wrap !important; }
+          .app-sidebar {
+            width: 100% !important; max-width: none !important; flex: none !important;
+            border-left: none !important; border-bottom: 1px solid var(--border, #2a3650) !important;
+            position: static !important; padding: 12px 14px !important; min-height: auto !important;
+            backdrop-filter: none !important;
+          }
+          .app-sidebar-nav { flex-direction: row !important; flex-wrap: wrap !important; gap: 6px !important; }
           .app-main { padding: 14px 12px 32px !important; }
         }
         @media (max-width: 640px) {
@@ -1587,13 +1658,19 @@ function MarketDashboard() {
         }
 
         .focus-ring:focus-visible {
-          outline: 2px solid #D4AF37;
+          outline: 2px solid var(--ring, #D4AF37);
           outline-offset: 2px;
+        }
+
+        /* Primary button hover */
+        button:not(.nav-btn):not(.range-btn) {
+          transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
         }
 
         @media (prefers-reduced-motion: reduce) {
           .ticker-track { animation: none; }
           .spin { animation: none; }
+          .asset-card, .nav-btn, .range-btn { transition: none; }
         }
       `), hoverTip.show && /*#__PURE__*/React.createElement("div", {
     className: "mkt-mono",
@@ -3585,31 +3662,32 @@ function MarketDashboard() {
 }
 const styles = {
   root: {
-    background: "#0B1220",
+    background: "var(--background, #0a0f1a)",
     minHeight: "100%",
-    color: "#EDEFF2"
+    color: "var(--foreground, #f4f6f9)"
   },
   tickerWrap: {
-    background: "#0F1B2E",
-    borderBottom: "1px solid #23304A",
+    background: "rgba(18,26,43,0.92)",
+    borderBottom: "1px solid var(--border, #2a3650)",
     overflow: "hidden",
     whiteSpace: "nowrap",
-    padding: "8px 0"
+    padding: "8px 0",
+    backdropFilter: "blur(8px)"
   },
   tickerItem: {
     display: "flex",
     alignItems: "center",
     padding: "0 20px",
     fontSize: 12.5,
-    borderLeft: "1px solid #23304A",
-    color: "#EDEFF2"
+    borderLeft: "1px solid var(--border, #2a3650)",
+    color: "var(--foreground, #f4f6f9)"
   },
   container: {
     flex: "1 1 auto",
     minWidth: 0,
     width: "100%",
     maxWidth: "none",
-    padding: "20px 28px 48px"
+    padding: "22px 28px 52px"
   },
   header: {
     display: "flex",
@@ -3617,18 +3695,23 @@ const styles = {
     justifyContent: "space-between",
     flexWrap: "wrap",
     gap: 12,
-    marginBottom: 22
+    marginBottom: 24
   },
   title: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: 800,
     margin: 0,
-    letterSpacing: "-0.02em"
+    letterSpacing: "-0.03em",
+    background: "linear-gradient(135deg, #f4f6f9 0%, #d4af37 160%)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    backgroundClip: "text"
   },
   subtitle: {
     fontSize: 13,
-    color: "#8B96A8",
-    margin: "4px 0 0"
+    color: "var(--muted-foreground, #8B96A8)",
+    margin: "6px 0 0",
+    lineHeight: 1.6
   },
   headerRight: {
     display: "flex",
@@ -3637,7 +3720,7 @@ const styles = {
   },
   updatedLabel: {
     fontSize: 12,
-    color: "#8B96A8",
+    color: "var(--muted-foreground, #8B96A8)",
     display: "flex",
     alignItems: "center"
   },
@@ -3645,31 +3728,33 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    background: "#D4AF37",
+    background: "linear-gradient(180deg, #e0c04a 0%, #D4AF37 100%)",
     color: "#0B1220",
     border: "none",
-    borderRadius: 8,
-    padding: "8px 14px",
+    borderRadius: 10,
+    padding: "9px 16px",
     fontSize: 13,
     fontWeight: 700,
     fontFamily: "Vazirmatn, sans-serif",
-    cursor: "pointer"
+    cursor: "pointer",
+    boxShadow: "0 2px 12px rgba(212,175,55,0.28)"
   },
   errorBanner: {
-    background: "rgba(240,85,63,0.12)",
-    border: "1px solid rgba(240,85,63,0.4)",
+    background: "rgba(240,85,63,0.10)",
+    border: "1px solid rgba(240,85,63,0.35)",
     color: "#F0AAA0",
-    borderRadius: 8,
-    padding: "10px 14px",
+    borderRadius: 12,
+    padding: "12px 16px",
     fontSize: 13,
-    marginBottom: 16
+    marginBottom: 16,
+    boxShadow: "var(--shadow-sm)"
   },
   noticeBanner: {
-    background: "rgba(212,175,55,0.10)",
-    border: "1px solid rgba(212,175,55,0.35)",
+    background: "rgba(212,175,55,0.08)",
+    border: "1px solid rgba(212,175,55,0.3)",
     color: "#D4AF37",
-    borderRadius: 8,
-    padding: "10px 14px",
+    borderRadius: 12,
+    padding: "12px 16px",
     fontSize: 12.5,
     marginBottom: 16
   },
@@ -3680,17 +3765,18 @@ const styles = {
     marginBottom: 24
   },
   card: {
-    background: "#121B2E",
-    border: "1px solid #23304A",
-    borderRadius: 12,
-    padding: 14,
+    background: "var(--card, #121a2b)",
+    border: "1px solid var(--border, #2a3650)",
+    borderRadius: 14,
+    padding: 16,
     textAlign: "right",
     cursor: "pointer",
     display: "flex",
     flexDirection: "column",
     gap: 10,
     fontFamily: "Vazirmatn, sans-serif",
-    color: "#EDEFF2"
+    color: "var(--foreground, #f4f6f9)",
+    boxShadow: "var(--shadow-sm)"
   },
   cardTop: {
     display: "flex",
@@ -3723,11 +3809,12 @@ const styles = {
     width: "80%"
   },
   panel: {
-    background: "#121B2E",
-    border: "1px solid #23304A",
-    borderRadius: 14,
-    padding: 18,
-    marginBottom: 20
+    background: "linear-gradient(180deg, rgba(22,32,51,0.95) 0%, rgba(18,26,43,0.98) 100%)",
+    border: "1px solid var(--border, #2a3650)",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    boxShadow: "var(--shadow)"
   },
   panelHeader: {
     display: "flex",
@@ -3738,9 +3825,10 @@ const styles = {
     marginBottom: 14
   },
   panelTitle: {
-    fontSize: 15,
+    fontSize: 15.5,
     fontWeight: 700,
-    marginBottom: 10
+    marginBottom: 10,
+    letterSpacing: "-0.01em"
   },
   irrGrid: {
     display: "grid",
@@ -3748,11 +3836,12 @@ const styles = {
     gap: 12
   },
   irrCard: {
-    background: "#0F1B2E",
-    border: "1px solid #23304A",
-    borderRadius: 12,
-    padding: 14,
-    textAlign: "right"
+    background: "var(--card-elevated, #162033)",
+    border: "1px solid var(--border, #2a3650)",
+    borderRadius: 14,
+    padding: 16,
+    textAlign: "right",
+    boxShadow: "var(--shadow-sm)"
   },
   irrCardTop: {
     display: "flex",
@@ -3781,23 +3870,26 @@ const styles = {
   },
   keyInput: {
     flex: "1 1 260px",
-    background: "#0B1220",
-    border: "1px solid #23304A",
-    borderRadius: 8,
-    padding: "9px 12px",
-    color: "#EDEFF2",
-    fontSize: 12.5
+    background: "var(--input, #1a2438)",
+    border: "1px solid var(--border, #2a3650)",
+    borderRadius: 10,
+    padding: "10px 12px",
+    color: "var(--foreground, #f4f6f9)",
+    fontSize: 12.5,
+    outline: "none",
+    boxShadow: "var(--shadow-sm)"
   },
   exchangeGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(2, 1fr)",
-    gap: 14
+    gap: 16
   },
   exchangeCard: {
-    background: "#0F1B2E",
-    border: "1px solid #23304A",
-    borderRadius: 12,
-    padding: 14
+    background: "var(--card-elevated, #162033)",
+    border: "1px solid var(--border, #2a3650)",
+    borderRadius: 14,
+    padding: 16,
+    boxShadow: "var(--shadow-sm)"
   },
   exchangeCardHeader: {
     display: "flex",
@@ -3812,7 +3904,7 @@ const styles = {
     flexWrap: "wrap",
     padding: "8px 0 12px",
     marginBottom: 4,
-    borderBottom: "1px solid #1B2740"
+    borderBottom: "1px solid rgba(42,54,80,0.8)"
   },
   exchangeTable: {
     width: "100%",
@@ -3926,16 +4018,17 @@ const styles = {
   },
   th: {
     textAlign: "right",
-    padding: "8px 10px",
-    color: "#8B96A8",
+    padding: "10px 12px",
+    color: "var(--muted-foreground, #8B96A8)",
     fontWeight: 600,
-    fontSize: 12,
-    borderBottom: "1px solid #23304A"
+    fontSize: 11.5,
+    borderBottom: "1px solid var(--border, #2a3650)",
+    background: "rgba(10,15,26,0.35)"
   },
   td: {
     textAlign: "right",
-    padding: "10px",
-    borderBottom: "1px solid #1B2740"
+    padding: "11px 12px",
+    borderBottom: "1px solid rgba(42,54,80,0.55)"
   },
   footer: {
     textAlign: "center",
@@ -3948,7 +4041,7 @@ const styles = {
     gap: 6,
     flexWrap: "wrap",
     marginBottom: 22,
-    borderBottom: "1px solid #23304A",
+    borderBottom: "1px solid var(--border, #2a3650)",
     paddingBottom: 12
   },
   layout: {
@@ -3960,25 +4053,26 @@ const styles = {
     boxSizing: "border-box"
   },
   sidebar: {
-    width: 250,
-    flex: "0 0 250px",
+    width: 260,
+    flex: "0 0 260px",
     flexShrink: 0,
-    background: "#0F1B2E",
-    borderLeft: "1px solid #23304A",
-    padding: "20px 14px",
+    background: "linear-gradient(180deg, rgba(18,26,43,0.98) 0%, rgba(12,18,32,0.99) 100%)",
+    borderLeft: "1px solid var(--border, #2a3650)",
+    padding: "22px 14px",
     position: "sticky",
     top: 0,
     alignSelf: "stretch",
     minHeight: "100vh",
-    boxSizing: "border-box"
+    boxSizing: "border-box",
+    boxShadow: "-8px 0 32px rgba(0,0,0,0.18)"
   },
   sidebarBrand: {
     display: "flex",
     alignItems: "center",
     gap: 10,
     padding: "0 8px 18px",
-    marginBottom: 8,
-    borderBottom: "1px solid #23304A"
+    marginBottom: 10,
+    borderBottom: "1px solid var(--border, #2a3650)"
   },
   sidebarLogo: {
     fontSize: 22,
@@ -4002,9 +4096,9 @@ const styles = {
     gap: 10,
     width: "100%",
     background: "transparent",
-    color: "#8B96A8",
+    color: "var(--muted-foreground, #8B96A8)",
     border: "1px solid transparent",
-    borderRadius: 9,
+    borderRadius: 10,
     padding: "11px 12px",
     fontSize: 13.5,
     fontWeight: 600,
@@ -4013,26 +4107,28 @@ const styles = {
     textAlign: "right"
   },
   sidebarBtnActive: {
-    background: "rgba(212,175,55,0.14)",
+    background: "linear-gradient(90deg, rgba(212,175,55,0.16) 0%, rgba(212,175,55,0.06) 100%)",
     color: "#D4AF37",
-    borderColor: "rgba(212,175,55,0.4)"
+    borderColor: "rgba(212,175,55,0.4)",
+    boxShadow: "0 0 0 1px rgba(212,175,55,0.08) inset"
   },
   gearBtn: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "#121B2E",
-    color: "#8B96A8",
-    border: "1px solid #23304A",
-    borderRadius: 8,
-    padding: "8px 10px",
-    cursor: "pointer"
+    background: "var(--card, #121a2b)",
+    color: "var(--muted-foreground, #8B96A8)",
+    border: "1px solid var(--border, #2a3650)",
+    borderRadius: 10,
+    padding: "9px 11px",
+    cursor: "pointer",
+    boxShadow: "var(--shadow-sm)"
   },
   leftBar: {
     width: 130,
     flexShrink: 0,
-    background: "#0F1B2E",
-    borderRight: "1px solid #23304A",
+    background: "var(--card, #121a2b)",
+    borderRight: "1px solid var(--border, #2a3650)",
     padding: "20px 12px",
     alignSelf: "stretch"
   },
@@ -4042,25 +4138,26 @@ const styles = {
     alignItems: "center",
     gap: 8,
     width: "100%",
-    background: "#121B2E",
-    color: "#8B96A8",
-    border: "1px solid #23304A",
-    borderRadius: 12,
+    background: "var(--card-elevated, #162033)",
+    color: "var(--muted-foreground, #8B96A8)",
+    border: "1px solid var(--border, #2a3650)",
+    borderRadius: 14,
     padding: "18px 10px",
     fontSize: 13,
     fontWeight: 700,
     fontFamily: "Vazirmatn, sans-serif",
     cursor: "pointer",
-    position: "relative"
+    position: "relative",
+    boxShadow: "var(--shadow-sm)"
   },
   navBtn: {
     display: "flex",
     alignItems: "center",
     gap: 7,
-    background: "#121B2E",
-    color: "#8B96A8",
-    border: "1px solid #23304A",
-    borderRadius: 9,
+    background: "var(--card, #121a2b)",
+    color: "var(--muted-foreground, #8B96A8)",
+    border: "1px solid var(--border, #2a3650)",
+    borderRadius: 10,
     padding: "9px 14px",
     fontSize: 13,
     fontWeight: 600,
@@ -4069,12 +4166,13 @@ const styles = {
     position: "relative"
   },
   navBtnActive: {
-    background: "#D4AF37",
+    background: "linear-gradient(180deg, #e0c04a 0%, #D4AF37 100%)",
     color: "#0B1220",
-    borderColor: "#D4AF37"
+    borderColor: "#D4AF37",
+    boxShadow: "0 2px 10px rgba(212,175,55,0.3)"
   },
   navBadge: {
-    background: "#F0553F",
+    background: "var(--destructive, #F0553F)",
     color: "#fff",
     borderRadius: 999,
     fontSize: 10,
@@ -4084,7 +4182,8 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: "0 4px"
+    padding: "0 4px",
+    boxShadow: "0 1px 4px rgba(240,85,63,0.4)"
   },
   alertForm: {
     display: "flex",
@@ -4093,14 +4192,15 @@ const styles = {
     alignItems: "center"
   },
   select: {
-    background: "#0B1220",
-    border: "1px solid #23304A",
-    borderRadius: 8,
+    background: "var(--input, #1a2438)",
+    border: "1px solid var(--border, #2a3650)",
+    borderRadius: 10,
     padding: "9px 12px",
-    color: "#EDEFF2",
+    color: "var(--foreground, #f4f6f9)",
     fontSize: 13,
     fontFamily: "Vazirmatn, sans-serif",
-    cursor: "pointer"
+    cursor: "pointer",
+    boxShadow: "var(--shadow-sm)"
   },
   alertRow: {
     display: "flex",
@@ -4129,7 +4229,7 @@ const styles = {
     justifyContent: "space-between",
     gap: 12,
     padding: "14px 0",
-    borderBottom: "1px solid #1B2740",
+    borderBottom: "1px solid rgba(42,54,80,0.65)",
     flexWrap: "wrap"
   },
   settingLabel: {
@@ -4139,24 +4239,27 @@ const styles = {
   },
   settingHint: {
     fontSize: 11.5,
-    color: "#8B96A8"
+    color: "var(--muted-foreground, #8B96A8)",
+    lineHeight: 1.6
   },
   settingInput: {
-    background: "#0B1220",
-    border: "1px solid #23304A",
-    borderRadius: 8,
+    background: "var(--input, #1a2438)",
+    border: "1px solid var(--border, #2a3650)",
+    borderRadius: 10,
     padding: "9px 12px",
-    color: "#EDEFF2",
+    color: "var(--foreground, #f4f6f9)",
     fontSize: 13,
     width: 140,
-    textAlign: "left"
+    textAlign: "left",
+    boxShadow: "var(--shadow-sm)"
   },
   apiCard: {
-    background: "#0F1B2E",
-    border: "1px solid #23304A",
-    borderRadius: 12,
+    background: "var(--card-elevated, #162033)",
+    border: "1px solid var(--border, #2a3650)",
+    borderRadius: 14,
     padding: 16,
-    marginBottom: 12
+    marginBottom: 12,
+    boxShadow: "var(--shadow-sm)"
   },
   apiCardHead: {
     display: "flex",
@@ -4165,18 +4268,20 @@ const styles = {
     gap: 8
   },
   bestCard: {
-    background: "#0F1B2E",
-    border: "1px solid #23304A",
-    borderRadius: 12,
-    padding: 16,
-    textAlign: "right"
+    background: "var(--card-elevated, #162033)",
+    border: "1px solid var(--border, #2a3650)",
+    borderRadius: 14,
+    padding: 18,
+    textAlign: "right",
+    boxShadow: "var(--shadow-sm)"
   },
   formulaCard: {
-    background: "#0F1B2E",
-    border: "1px solid #23304A",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12
+    background: "var(--card-elevated, #162033)",
+    border: "1px solid var(--border, #2a3650)",
+    borderRadius: 14,
+    padding: 18,
+    marginBottom: 12,
+    boxShadow: "var(--shadow-sm)"
   }
 };
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(MarketDashboard));
