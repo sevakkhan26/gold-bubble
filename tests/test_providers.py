@@ -143,6 +143,8 @@ def test_build_model_multi_exchange_usdt(monkeypatch):
     assert m["exchanges"]["exir"]["usdt"]["latest"] == 92010
     assert m["exchanges"]["ramzinex"]["usdt"]["buy"] == 92010
     assert m["exchanges"]["tetherland"]["usdt"]["buy"] == 91950
+    # USDT also exposed as usd proxy for bubble math
+    assert m["exchanges"]["nobitex"]["usd"]["sell"] == 92300
     # TGJU also available for bonbast when navasan present
     assert m["ounceUsd"] == 4072
     assert m["estimated"]["usd"] is False

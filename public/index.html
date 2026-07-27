@@ -390,11 +390,9 @@ const BASE_USD_SELL = 158000;
 // price, then to mock data — the UI never breaks.
 const API_BASE = typeof window !== "undefined" && window.__API_BASE__ || "/api";
 
-// Map the backend model -> per-exchange rates. Each exchange box shows ONLY the
-// data attributed to that exchange's own source (model.exchanges[id]); nothing is
-// broadcast across exchanges. Missing values stay null -> UI shows "—".
-// Market-level fields (Navasan / USDT-proxy / melt-estimate) are attached to the
-// navasan (or bonbast) row so the board is not empty when only aggregate data exists.
+// Map the backend model -> per-exchange rates for the board + bubble pages.
+// Real sources only. For USDT venues we also expose USDT as a dollar proxy so
+// bubble/arb pages can compute (حباب دلار / melt) without inventing mock quotes.
 function mapLiveModelToRates(model) {
   const rates = {};
   const tags = {};
@@ -404,52 +402,81 @@ function mapLiveModelToRates(model) {
 
   EXCHANGES.forEach(ex => {
     const e = byEx[ex.id] || {};
+    const hasOwnUsd = !!(e.usd && (e.usd.buy != null || e.usd.sell != null));
+    const hasOwnAed = !!(e.aed && (e.aed.buy != null || e.aed.sell != null));
+    const hasOwnG18 = !!(e.gold18PerKg && (e.gold18PerKg.buy != null || e.gold18PerKg.sell != null));
+    const hasOwnG24 = !!(e.shemsh24PerKg && (e.shemsh24PerKg.buy != null || e.shemsh24PerKg.sell != null));
+    const usdt = e.usdt || null;
+    // Dollar proxy: free-market USD if present, else this venue's USDT mid
+    const usd = hasOwnUsd ? e.usd : usdt;
     const entry = {
-      usd: e.usd || null,
-      usdt: e.usdt || null,
-      aed: e.aed || null,
-      gold18: e.gold18PerKg || null,
-      shemsh24: e.shemsh24PerKg || null,
-      goldGlobal: e.gold18PerKg || null
+      usd: usd || null,
+      usdt: usdt,
+      aed: hasOwnAed ? e.aed : null,
+      gold18: hasOwnG18 ? e.gold18PerKg : null,
+      shemsh24: hasOwnG24 ? e.shemsh24PerKg : null,
+      goldGlobal: hasOwnG18 ? e.gold18PerKg : null,
+      // flags used by bubble page for fair-value composition
+      _usdFromUsdt: !hasOwnUsd && !!usdt,
+      _hasOwnGold: hasOwnG18 || hasOwnG24
     };
-    const liveKeys = Object.keys(entry).filter(k => entry[k]);
+    const liveKeys = [];
+    if (entry.usdt) liveKeys.push("usdt");
+    if (hasOwnUsd) liveKeys.push("usd");
+    else if (entry.usd) liveKeys.push("usd"); // proxy
+    if (entry.aed) liveKeys.push("aed");
+    if (entry.gold18) liveKeys.push("gold18");
+    if (entry.shemsh24) liveKeys.push("shemsh24");
     rates[ex.id] = entry;
     tags[ex.id] = {
       state: liveKeys.length ? "live" : "empty",
       liveKeys,
-      estimated: false
+      estimated: !hasOwnUsd && !!usdt
     };
   });
 
-  // Attach aggregate market (domestic / proxy) onto navasan first, else bonbast.
-  const homeId = byEx.navasan ? "navasan" : byEx.bonbast ? "bonbast" : "navasan";
-  const home = rates[homeId] || {};
-  let homeTouched = false;
-  if (!home.usd && market.usd) {
-    home.usd = market.usd;
-    homeTouched = true;
-  }
-  if (!home.aed && market.aed) {
-    home.aed = market.aed;
-    homeTouched = true;
-  }
-  if (!home.gold18 && market.gold18PerKg) {
-    home.gold18 = market.gold18PerKg;
-    home.goldGlobal = market.gold18PerKg;
-    homeTouched = true;
-  }
-  if (!home.shemsh24 && market.shemsh24PerKg) {
-    home.shemsh24 = market.shemsh24PerKg;
-    homeTouched = true;
-  }
-  if (homeTouched) {
-    rates[homeId] = home;
-    const liveKeys = Object.keys(home).filter(k => home[k]);
-    tags[homeId] = {
-      state: "live",
-      liveKeys,
-      estimated: !!(estimated.usd || estimated.gold)
+  // Free-market board (TGJU → بن‌بست or Navasan when keyed) — fill missing FX/gold
+  // only on the free-market home row, never invent mock numbers.
+  const homeId = byEx.navasan && (byEx.navasan.usd || byEx.navasan.gold18PerKg)
+    ? "navasan"
+    : byEx.bonbast
+      ? "bonbast"
+      : market.usd || market.aed || market.gold18PerKg
+        ? "bonbast"
+        : null;
+  if (homeId) {
+    const home = {
+      ...(rates[homeId] || {})
     };
+    let homeTouched = false;
+    if (!home.usd && market.usd) {
+      home.usd = market.usd;
+      homeTouched = true;
+    }
+    if (!home.aed && market.aed) {
+      home.aed = market.aed;
+      homeTouched = true;
+    }
+    if (!home.gold18 && market.gold18PerKg) {
+      home.gold18 = market.gold18PerKg;
+      home.goldGlobal = market.gold18PerKg;
+      home._hasOwnGold = true;
+      homeTouched = true;
+    }
+    if (!home.shemsh24 && market.shemsh24PerKg) {
+      home.shemsh24 = market.shemsh24PerKg;
+      home._hasOwnGold = true;
+      homeTouched = true;
+    }
+    if (homeTouched || tags[homeId]?.state === "live") {
+      rates[homeId] = home;
+      const liveKeys = Object.keys(home).filter(k => home[k] && k[0] !== "_");
+      tags[homeId] = {
+        state: liveKeys.length ? "live" : "empty",
+        liveKeys,
+        estimated: !!(estimated.usd || estimated.gold)
+      };
+    }
   }
 
   return {
@@ -1209,8 +1236,14 @@ function MarketDashboard() {
 
   // Domestic averages (across exchanges) used as the "داخلی" reference.
   const avgOf = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
-  const domAvg18 = avgOf(EXCHANGES.map(ex => exchangeRates[ex.id]?.gold18?.sell).filter(v => typeof v === "number"));
-  const domAvg24 = avgOf(EXCHANGES.map(ex => exchangeRates[ex.id]?.shemsh24?.sell).filter(v => typeof v === "number"));
+  // Domestic averages only from venues that truly quote gold (not USDT-proxy rows)
+  const domAvg18 = avgOf(EXCHANGES.map(ex => exchangeRates[ex.id]?._hasOwnGold ? exchangeRates[ex.id]?.gold18?.sell : null).filter(v => typeof v === "number"));
+  const domAvg24 = avgOf(EXCHANGES.map(ex => exchangeRates[ex.id]?._hasOwnGold ? exchangeRates[ex.id]?.shemsh24?.sell : null).filter(v => typeof v === "number"));
+  // Free-market AED / gold used to complete bubble math on USDT-only venues
+  const refAedBuy = EXCHANGES.map(ex => exchangeRates[ex.id]?.aed?.buy).find(v => typeof v === "number");
+  const refAedSell = EXCHANGES.map(ex => exchangeRates[ex.id]?.aed?.sell).find(v => typeof v === "number");
+  const refG18Sell = EXCHANGES.map(ex => exchangeRates[ex.id]?._hasOwnGold ? exchangeRates[ex.id]?.gold18?.sell : null).find(v => typeof v === "number");
+  const refG24Sell = EXCHANGES.map(ex => exchangeRates[ex.id]?._hasOwnGold ? exchangeRates[ex.id]?.shemsh24?.sell : null).find(v => typeof v === "number");
 
   // Reusable gold-bubble table: bubble = quoted − reference (per exchange).
   const renderGoldBubblePage = ({
@@ -2031,12 +2064,19 @@ function MarketDashboard() {
     style: styles.th
   }, "حباب ۲۴ عیار خارجی"))), /*#__PURE__*/React.createElement("tbody", null, EXCHANGES.map(ex => {
     const r = exchangeRates[ex.id];
-    const bUsdBuy = bubbleUsd(r?.usd?.buy, r?.aed?.buy);
-    const bUsdSell = bubbleUsd(r?.usd?.sell, r?.aed?.sell);
-    // Foreign = vs global melt value.
-    const b18for = bubble18(r?.gold18?.sell, r?.usd?.sell);
-    const b24for = bubbleShemsh24(r?.shemsh24?.sell, r?.usd?.sell);
-    // Domestic arbitrage = vs cross-exchange average.
+    // USDT venues: dollar = USDT; fair dollar uses free-market AED when venue has no AED
+    const usdBuy = r?.usd?.buy ?? r?.usdt?.buy;
+    const usdSell = r?.usd?.sell ?? r?.usdt?.sell;
+    const aedBuy = r?.aed?.buy ?? refAedBuy;
+    const aedSell = r?.aed?.sell ?? refAedSell;
+    const bUsdBuy = bubbleUsd(usdBuy, aedBuy);
+    const bUsdSell = bubbleUsd(usdSell, aedSell);
+    // Foreign gold: free-market gold vs melt from THIS venue's dollar/USDT
+    const g18q = r?._hasOwnGold ? r?.gold18?.sell : refG18Sell;
+    const g24q = r?._hasOwnGold ? r?.shemsh24?.sell : refG24Sell;
+    const b18for = bubble18(g18q, usdSell);
+    const b24for = bubbleShemsh24(g24q, usdSell);
+    // Domestic gold arb only when venue itself quotes gold
     const domBubble = (quoted, avg) => quoted && avg ? {
       amount: quoted - avg,
       pct: (quoted - avg) / avg * 100
@@ -2044,8 +2084,14 @@ function MarketDashboard() {
       amount: null,
       pct: null
     };
-    const b18dom = domBubble(r?.gold18?.sell, domAvg18);
-    const b24dom = domBubble(r?.shemsh24?.sell, domAvg24);
+    const b18dom = r?._hasOwnGold ? domBubble(r?.gold18?.sell, domAvg18) : {
+      amount: null,
+      pct: null
+    };
+    const b24dom = r?._hasOwnGold ? domBubble(r?.shemsh24?.sell, domAvg24) : {
+      amount: null,
+      pct: null
+    };
     const cell = b => {
       if (b.pct === null) return /*#__PURE__*/React.createElement("td", {
         style: styles.td

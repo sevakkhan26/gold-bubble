@@ -582,7 +582,9 @@ def build_model(
     # --- per-exchange board ---
     exchanges: dict = {}
     for ex_id, usdt in usdt_ex.items():
-        exchanges[ex_id] = {"usdt": usdt}
+        # USDT mid is the desk's tradeable "dollar proxy" — expose as usd too
+        # so bubble/market tables can compute without mock data.
+        exchanges[ex_id] = {"usdt": usdt, "usd": usdt}
 
     if dom and dom_id:
         exchanges[dom_id] = {
