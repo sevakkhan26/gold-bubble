@@ -15,7 +15,7 @@ RUN set -e; \
 COPY app ./app
 COPY public ./public
 
-ARG APP_VERSION=1.1.0
+ARG APP_VERSION=1.1.1
 ARG GIT_SHA=unknown
 ENV APP_VERSION=$APP_VERSION \
     APP_GIT_SHA=$GIT_SHA \
