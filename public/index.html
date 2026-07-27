@@ -187,25 +187,33 @@ const IRR_ASSET_REGISTRY = [{
   flag: "🇦🇪"
 }];
 
-// Foreign gold sources (priced in USD per troy ounce). PAX Gold is real (from
-// CoinGecko pax-gold); others are mock placeholders until wired to a real feed.
+// Foreign gold sources (USD / troy ounce) — ALL live from backend /api/prices.
+// No mockUsd. Badge "زنده" only when the live value is present.
+//   coinId  → model.foreignGold[coinId]  (CoinGecko)
+//   useSpot → model.ounceUsd             (gold-api.com XAU)
 const FOREIGN_GOLD_SOURCES = [{
   name: "پکس گلد (PAXG)",
-  coinId: "pax-gold",
-  mockUsd: null
+  coinId: "pax-gold"
 }, {
   name: "تتر گلد (XAUT)",
-  coinId: null,
-  mockUsd: 4075
+  coinId: "tether-gold"
 }, {
-  name: "اسپات جهانی (Spot)",
-  coinId: null,
-  mockUsd: 4072
-}, {
-  name: "کیتکو (Kitco)",
-  coinId: null,
-  mockUsd: 4070
+  name: "اسپات جهانی (gold-api)",
+  useSpot: true
 }];
+
+/** Resolve live USD/oz for a foreign-gold row. Returns null if not live (no mock). */
+function resolveForeignOunce(src, liveModel, liveOunce) {
+  if (src && src.coinId) {
+    const v = liveModel && liveModel.foreignGold && liveModel.foreignGold[src.coinId];
+    return typeof v === "number" && !isNaN(v) && v > 0 ? v : null;
+  }
+  if (src && src.useSpot) {
+    const v = liveOunce != null ? liveOunce : liveModel && liveModel.ounceUsd;
+    return typeof v === "number" && !isNaN(v) && v > 0 ? v : null;
+  }
+  return null;
+}
 function formatToman(n) {
   if (n === null || n === undefined || isNaN(n)) return "—";
   return Number(n).toLocaleString("en-US") + " تومان";
@@ -258,9 +266,6 @@ function realUsdFromAed(aedPrice) {
 const GRAMS_PER_TROY_OUNCE = 31.103;
 const GOLD_PURITY_18K = 0.75;
 const DIVIDE_BY_TROY = true;
-// Mock global gold ounce price (USD) used when live PAX-Gold data isn't present,
-// so the "تبدیل طلای جهانی" row still computes in full mock mode.
-const MOCK_OUNCE_USD = 4072;
 function computeGlobalGold(ounceUsd, dollarToman) {
   if (!ounceUsd || !dollarToman || isNaN(ounceUsd) || isNaN(dollarToman)) return null;
   const perOunceToman = ounceUsd * dollarToman;
@@ -305,11 +310,8 @@ function timeAgoFa(date) {
 // Multi-exchange comparison: دلار (USD) / تتر (USDT) / درهم (AED),
 // buy + sell, side by side across every source you asked for.
 //
-// This is a MOCK scaffold — no live requests are made for these ten
-// sources yet. When you're ready to wire real data in, add an async
-// function per exchange id to EXCHANGE_FETCHERS below. Each function
-// must resolve to: { usd: {buy, sell}, usdt: {buy, sell}, aed: {buy, sell}, gold18: {buy, sell}, goldGlobal: {buy, sell} }
-// (numbers in Toman). Any id left out just keeps showing mock numbers.
+// Exchange board ids. All prices come from backend /api/prices via
+// mapLiveModelToRates — never invent client-side quotes.
 // ---------------------------------------------------------------------
 const EXCHANGES = [{
   id: "bonbast",
@@ -381,13 +383,8 @@ const API_SLOTS = [{
     label: "منبع دلخواه ۲"
   }]
 }];
-// Each exchange gets a small deterministic offset so cards don't look identical.
-const BASE_USD_SELL = 158000;
-
-// Base URL of the pricing backend. Same-origin "/api" when served by the Node
-// server; override via window.__API_BASE__. When no backend is reachable (e.g.
-// the standalone artifact), fetches fail and we fall back to the last valid
-// price, then to mock data — the UI never breaks.
+// Base URL of the pricing backend. Same-origin "/api".
+// When backend is down: last-good cache (stale) or empty rows — never mock prices.
 const API_BASE = typeof window !== "undefined" && window.__API_BASE__ || "/api";
 
 // Crypto venues only quote USDT; free-market box owns cash USD/AED/gold.
@@ -546,85 +543,22 @@ function parseNavasanToEntry(data) {
   const has = Object.keys(entry).some(k => entry[k]);
   return has ? entry : null;
 }
-function buildMockExchangeRates(jitterSeed = 0) {
+/** Empty board — used before first live fetch or when backend is fully down. */
+function emptyExchangeRates() {
   const out = {};
-  EXCHANGES.forEach((ex, idx) => {
-    const spreadPct = 0.004 + idx % 4 * 0.001; // small buy/sell spread variance per exchange
-    const offset = (idx - EXCHANGES.length / 2) * 60 + jitterSeed;
-    const usdSell = Math.round((BASE_USD_SELL + offset) / 100) * 100;
-    const usdBuy = Math.round(usdSell * (1 - spreadPct) / 100) * 100;
-    const usdtSell = Math.round(usdSell * 0.995 / 100) * 100;
-    const usdtBuy = Math.round(usdtSell * (1 - spreadPct) / 100) * 100;
-    const aedSell = Math.round(usdSell / 3.6725 / 10) * 10;
-    const aedBuy = Math.round(usdBuy / 3.6725 / 10) * 10;
-    // Gold 18k per-KILOGRAM (Toman) — mock ballpark (~98× dollar per gram × 1000).
-    const gold18SellG = Math.round((usdSell * 98 + offset * 40) / 1000) * 1000; // per gram
-    const gold18Sell = gold18SellG * 1000; // per kilogram
-    const gold18Buy = Math.round(gold18Sell * (1 - spreadPct));
-    // "تبدیل طلای جهانی" is computed live from the ounce price × this dollar,
-    // so these mock fields are just fallbacks and normally unused.
-    const goldGlobalSell = gold18Sell;
-    const goldGlobalBuy = gold18Buy;
-    // Shemsh (24k ingot) per-KILOGRAM (Toman) — 18k/0.75 with a small ingot premium.
-    const shemsh24Sell = Math.round(gold18SellG / 0.75 * 1.005) * 1000; // per kilogram
-    const shemsh24Buy = Math.round(shemsh24Sell * (1 - spreadPct));
+  EXCHANGES.forEach(ex => {
     out[ex.id] = {
-      usd: {
-        buy: usdBuy,
-        sell: usdSell
-      },
-      usdt: {
-        buy: usdtBuy,
-        sell: usdtSell
-      },
-      aed: {
-        buy: aedBuy,
-        sell: aedSell
-      },
-      gold18: {
-        buy: gold18Buy,
-        sell: gold18Sell
-      },
-      goldGlobal: {
-        buy: goldGlobalBuy,
-        sell: goldGlobalSell
-      },
-      shemsh24: {
-        buy: shemsh24Buy,
-        sell: shemsh24Sell
-      }
+      usd: null,
+      usdt: null,
+      aed: null,
+      gold18: null,
+      goldGlobal: null,
+      shemsh24: null,
+      _hasOwnGold: false
     };
   });
   return out;
 }
-
-// Fill these in later with real requests, e.g.:
-// nobitex: async () => {
-//   const res = await fetch("https://api.nobitex.ir/market/stats?srcCurrency=usdt&dstCurrency=rls");
-//   const data = await res.json();
-//   ...map into { usd, usdt, aed } shape...
-// }
-
-// Fetch JSON, retrying through a public CORS proxy if the direct request is
-// blocked (many Iranian exchange APIs don't send CORS headers, so a direct
-// browser fetch from this sandbox fails with "Failed to fetch").
-async function fetchJsonWithProxy(url) {
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } catch {
-    const proxied = await fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(url));
-    if (!proxied.ok) throw new Error(`proxy HTTP ${proxied.status}`);
-    return await proxied.json();
-  }
-}
-const EXCHANGE_FETCHERS = {
-  // Left empty on purpose — everything runs in mock mode for now.
-  // When you're ready for real data, add an async function per exchange id here,
-  // e.g. nobitex: async () => ({ usdt: { buy, sell } }). Any id not listed
-  // keeps showing mock numbers.
-};
 const NAV_ITEMS = [{
   id: "market",
   label: "مانیتورینگ بازار",
@@ -777,7 +711,7 @@ function MarketDashboard() {
   const [navasanLoading, setNavasanLoading] = useState(false);
   const [navasanError, setNavasanError] = useState(null);
   const [navasanUpdated, setNavasanUpdated] = useState(null);
-  const [exchangeRates, setExchangeRates] = useState(() => buildMockExchangeRates());
+  const [exchangeRates, setExchangeRates] = useState(() => emptyExchangeRates());
   const [exchangeSourceTag, setExchangeSourceTag] = useState({});
   const [exchangeUpdated, setExchangeUpdated] = useState(null);
 
@@ -823,10 +757,12 @@ function MarketDashboard() {
   const [liveModel, setLiveModel] = useState(null); // central model for the whole UI
   const [clientNavasan, setClientNavasan] = useState(null); // نوسان entry fetched from Settings key
   const clientNavasanRef = useRef(null);
-  const [dataMode, setDataMode] = useState("mock"); // 'live' | 'stale' | 'mock'
+  const [dataMode, setDataMode] = useState("empty"); // 'live' | 'stale' | 'empty' — never invent mock prices
   const [appVersion, setAppVersion] = useState(null); // {version, gitSha} from backend
   const [setPurity, setSetPurity] = useState(0.75);
-  const [setOunceMock, setSetOunceMock] = useState(4072);
+  // Manual ounce override only when useManualOunce is true (Settings)
+  const [useManualOunce, setUseManualOunce] = useState(false);
+  const [setOunceMock, setSetOunceMock] = useState(null);
   const [setTroyOunce, setSetTroyOunce] = useState(31.103);
   const [setRefreshSec, setSetRefreshSec] = useState(60);
 
@@ -1070,17 +1006,18 @@ function MarketDashboard() {
       return;
     }
 
-    // 3) No live data ever seen -> mock (keeps the UI functional/demo).
-    const mocked = buildMockExchangeRates(Math.round(Math.random() * 400 - 200));
+    // 3) No live data ever seen — empty board (no invented prices).
+    const empty = emptyExchangeRates();
     const tags = {};
     EXCHANGES.forEach(ex => tags[ex.id] = {
-      state: "mock",
+      state: "empty",
       liveKeys: []
     });
-    applyNav(mocked, tags);
-    setExchangeRates(mocked);
+    applyNav(empty, tags);
+    setExchangeRates(empty);
     setExchangeSourceTag(tags);
-    setDataMode("mock");
+    setLiveOunce(null);
+    setDataMode("empty");
     setExchangeUpdated(new Date());
   }, []);
   useEffect(() => {
@@ -1102,7 +1039,8 @@ function MarketDashboard() {
           const cfg = JSON.parse(s.value);
           if (cfg.aedPeg) setSetAedPeg(cfg.aedPeg);
           if (cfg.purity) setSetPurity(cfg.purity);
-          if (cfg.ounceMock) setSetOunceMock(cfg.ounceMock);
+          if (cfg.useManualOunce) setUseManualOunce(!!cfg.useManualOunce);
+          if (cfg.ounceMock != null && cfg.ounceMock !== "") setSetOunceMock(Number(cfg.ounceMock));
           if (cfg.troyOunce) setSetTroyOunce(cfg.troyOunce);
           if (cfg.refreshSec) setSetRefreshSec(cfg.refreshSec);
         }
@@ -1158,7 +1096,7 @@ function MarketDashboard() {
         liveKeys: Object.keys(clientNavasan).filter(k => clientNavasan[k])
       }
     }));
-    setDataMode(dm => dm === "mock" ? "live" : dm);
+    setDataMode(dm => dm === "empty" ? "live" : dm);
     setExchangeUpdated(new Date());
   }, [clientNavasan]);
 
@@ -1193,7 +1131,10 @@ function MarketDashboard() {
   const selectedMeta = NAME_BY_ID[selectedId];
   const trendUp = chartData.length > 1 && chartData[chartData.length - 1].price >= chartData[0].price;
   const navasanAedEntries = Object.entries(navasanRates).filter(([k]) => k.toLowerCase().startsWith("aed"));
-  const ounceUsd = liveOunce ?? setOunceMock;
+  // Live ounce only; optional Settings override when user explicitly enables it.
+  const ounceUsd = useManualOunce && setOunceMock != null && !isNaN(setOunceMock)
+    ? setOunceMock
+    : liveOunce;
 
   // Settings-aware gold computations (per gram, Toman) from a dollar price.
   const gold24From = dollarToman => {
@@ -1737,7 +1678,7 @@ function MarketDashboard() {
   }, PAGE_META[page].subtitle)), /*#__PURE__*/React.createElement("div", {
     style: styles.headerRight
   }, /*#__PURE__*/React.createElement("span", {
-    title: dataMode === "live" ? "داده‌ها زنده از API دریافت می‌شوند" : dataMode === "stale" ? "منبع موقتاً در دسترس نیست — آخرین قیمت معتبر نمایش داده می‌شود" : "داده‌ی نمایشی (بک‌اند در دسترس نیست)",
+    title: dataMode === "live" ? "داده‌ها زنده از API دریافت می‌شوند" : dataMode === "stale" ? "منبع موقتاً در دسترس نیست — آخرین قیمت معتبر نمایش داده می‌شود" : "هنوز دادهٔ زنده‌ای دریافت نشده",
     style: {
       fontSize: 11,
       fontWeight: 700,
@@ -1747,7 +1688,7 @@ function MarketDashboard() {
       color: dataMode === "live" ? "#35C48C" : dataMode === "stale" ? "#D4AF37" : "#F0553F",
       border: `1px solid ${dataMode === "live" ? "rgba(53,196,140,0.4)" : dataMode === "stale" ? "rgba(212,175,55,0.4)" : "rgba(240,85,63,0.4)"}`
     }
-  }, dataMode === "live" ? "● زنده" : dataMode === "stale" ? "● آخرین معتبر" : "● نمایشی"), /*#__PURE__*/React.createElement("span", {
+  }, dataMode === "live" ? "● زنده" : dataMode === "stale" ? "● آخرین معتبر" : "● بدون داده"), /*#__PURE__*/React.createElement("span", {
     style: styles.updatedLabel
   }, /*#__PURE__*/React.createElement(Clock3, {
     size: 14,
@@ -1869,8 +1810,8 @@ function MarketDashboard() {
         color: isLive ? "#35C48C" : "#D4AF37",
         border: `1px solid ${isLive ? "rgba(53,196,140,0.4)" : "rgba(212,175,55,0.4)"}`
       },
-      title: isLive ? "بخشی از داده‌ها زنده است: " + liveKeys.join(", ") : tag?.state === "empty" ? "این صرافی از بک‌اند داده ندارد" : "همه داده‌ها نمایشی است"
-    }, isLive ? (tag?.estimated ? "تخمینی: " : "زنده: ") + liveKeys.map(k => k === "usdt" ? "تتر" : k === "usd" ? "دلار" : k === "aed" ? "درهم" : k === "gold18" ? "۱۸" : k === "shemsh24" ? "۲۴" : k).join("، ") : tag?.state === "empty" ? "بدون داده" : "نمایشی")), /*#__PURE__*/React.createElement("div", {
+      title: isLive ? "بخشی از داده‌ها زنده است: " + liveKeys.join(", ") : "این صرافی از بک‌اند داده ندارد"
+    }, isLive ? (tag?.estimated ? "تخمینی: " : "زنده: ") + liveKeys.map(k => k === "usdt" ? "تتر" : k === "usd" ? "دلار" : k === "aed" ? "درهم" : k === "gold18" ? "۱۸" : k === "shemsh24" ? "۲۴" : k).join("، ") : "بدون داده")), /*#__PURE__*/React.createElement("div", {
       style: styles.rankBar
     }, renderRankCluster("دلار", buyRank, sellRank, buySellDiffPct), /*#__PURE__*/React.createElement("span", {
       style: {
@@ -2149,7 +2090,7 @@ function MarketDashboard() {
       color: "#5C6B85",
       marginTop: 12
     }
-  }, "انس جهانی مرجع: ", formatNum(Math.round(ounceUsd)), " دلار · پابند درهم: ", setAedPeg, " · عیار: ", (setPurity * 100).toFixed(0), "٪ · بروزرسانی: ", timeAgoFa(exchangeUpdated))), page === "b24for" && (() => {
+  }, "انس جهانی مرجع: ", formatNum(ounceUsd != null ? Math.round(ounceUsd) : null), " دلار · پابند درهم: ", setAedPeg, " · عیار: ", (setPurity * 100).toFixed(0), "٪ · بروزرسانی: ", timeAgoFa(exchangeUpdated))), page === "b24for" && (() => {
     const dollarRate = avgUsdSell || bestSellVal || 0; // USD→Toman rate for conversion
     const eq24From = usdOunce => usdOunce && dollarRate ? usdOunce * dollarRate / setTroyOunce * 1000 : null;
     return /*#__PURE__*/React.createElement("section", {
@@ -2182,7 +2123,7 @@ function MarketDashboard() {
     }, "حباب"), /*#__PURE__*/React.createElement("th", {
       style: styles.th
     }, "درصد حباب"))), /*#__PURE__*/React.createElement("tbody", null, FOREIGN_GOLD_SOURCES.map(src => {
-      const usdOunce = src.coinId ? liveModel?.foreignGold?.[src.coinId] ?? src.mockUsd ?? ounceUsd : src.mockUsd;
+      const usdOunce = resolveForeignOunce(src, liveModel, liveOunce);
       const eq24 = eq24From(usdOunce);
       const domestic24 = domAvg24; // per kilogram
       const amount = eq24 && domestic24 ? eq24 - domestic24 : null;
@@ -2190,7 +2131,7 @@ function MarketDashboard() {
       // Rule: foreign value LOWER than domestic → red; otherwise green.
       const foreignLower = eq24 !== null && domestic24 !== null && eq24 < domestic24;
       const bubbleColor = foreignLower ? "#F0553F" : "#35C48C";
-      const isReal = !!src.coinId;
+      const isReal = usdOunce != null;
       return /*#__PURE__*/React.createElement("tr", {
         key: src.name,
         className: "row-hover"
@@ -2202,11 +2143,11 @@ function MarketDashboard() {
           marginRight: 6,
           padding: "1px 6px",
           borderRadius: 999,
-          background: isReal ? "rgba(53,196,140,0.15)" : "rgba(212,175,55,0.15)",
-          color: isReal ? "#35C48C" : "#D4AF37",
-          border: `1px solid ${isReal ? "rgba(53,196,140,0.4)" : "rgba(212,175,55,0.4)"}`
+          background: isReal ? "rgba(53,196,140,0.15)" : "rgba(240,85,63,0.12)",
+          color: isReal ? "#35C48C" : "#F0553F",
+          border: `1px solid ${isReal ? "rgba(53,196,140,0.4)" : "rgba(240,85,63,0.35)"}`
         }
-      }, isReal ? "زنده" : "نمایشی")), /*#__PURE__*/React.createElement("td", {
+      }, isReal ? "زنده" : "بدون داده")), /*#__PURE__*/React.createElement("td", {
         style: styles.td,
         className: "mkt-mono",
         dir: "ltr"
@@ -2418,7 +2359,7 @@ function MarketDashboard() {
     }, "حباب"), /*#__PURE__*/React.createElement("th", {
       style: styles.th
     }, "درصد حباب"))), /*#__PURE__*/React.createElement("tbody", null, FOREIGN_GOLD_SOURCES.map(src => {
-      const usdOunce = src.coinId ? liveModel?.foreignGold?.[src.coinId] ?? src.mockUsd ?? ounceUsd : src.mockUsd;
+      const usdOunce = resolveForeignOunce(src, liveModel, liveOunce);
       const eq18 = eq18From(usdOunce);
       const domestic18 = domAvg18; // per kilogram
       const amount = eq18 && domestic18 ? eq18 - domestic18 : null;
@@ -2426,7 +2367,7 @@ function MarketDashboard() {
       // Rule: foreign value LOWER than domestic → red; otherwise green.
       const foreignLower = eq18 !== null && domestic18 !== null && eq18 < domestic18;
       const bubbleColor = foreignLower ? "#F0553F" : "#35C48C";
-      const isReal = !!src.coinId;
+      const isReal = usdOunce != null;
       return /*#__PURE__*/React.createElement("tr", {
         key: src.name,
         className: "row-hover"
@@ -2438,11 +2379,11 @@ function MarketDashboard() {
           marginRight: 6,
           padding: "1px 6px",
           borderRadius: 999,
-          background: isReal ? "rgba(53,196,140,0.15)" : "rgba(212,175,55,0.15)",
-          color: isReal ? "#35C48C" : "#D4AF37",
-          border: `1px solid ${isReal ? "rgba(53,196,140,0.4)" : "rgba(212,175,55,0.4)"}`
+          background: isReal ? "rgba(53,196,140,0.15)" : "rgba(240,85,63,0.12)",
+          color: isReal ? "#35C48C" : "#F0553F",
+          border: `1px solid ${isReal ? "rgba(53,196,140,0.4)" : "rgba(240,85,63,0.35)"}`
         }
-      }, isReal ? "زنده" : "نمایشی")), /*#__PURE__*/React.createElement("td", {
+      }, isReal ? "زنده" : "بدون داده")), /*#__PURE__*/React.createElement("td", {
         style: styles.td,
         className: "mkt-mono",
         dir: "ltr"
@@ -3121,7 +3062,7 @@ function MarketDashboard() {
       marginTop: 12,
       lineHeight: 1.9
     }
-  }, "مقادیر جاری: پابند درهم = ", setAedPeg, " · عیار = ", setPurity, " · ثابت اونس = ", setTroyOunce, " · انس مرجع = ", formatNum(Math.round(ounceUsd)), " دلار. این مقادیر را می‌توانی از صفحه‌ی تنظیمات تغییر بدهی.")), page === "alerts" && /*#__PURE__*/React.createElement("section", {
+  }, "مقادیر جاری: پابند درهم = ", setAedPeg, " · عیار = ", setPurity, " · ثابت اونس = ", setTroyOunce, " · انس مرجع = ", formatNum(ounceUsd != null ? Math.round(ounceUsd) : null), " دلار", useManualOunce ? " (دستی)" : " (زنده)", ".")), page === "alerts" && /*#__PURE__*/React.createElement("section", {
     style: styles.panel
   }, /*#__PURE__*/React.createElement("div", {
     style: styles.panelTitle
@@ -3306,15 +3247,34 @@ function MarketDashboard() {
     style: styles.settingRow
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: styles.settingLabel
-  }, "قیمت انس جهانی نمایشی (دلار)"), /*#__PURE__*/React.createElement("div", {
+  }, "استفاده از انس دستی (اختیاری)"), /*#__PURE__*/React.createElement("div", {
     style: styles.settingHint
-  }, "وقتی داده زنده PAX Gold در دسترس نباشه استفاده می‌شه")), /*#__PURE__*/React.createElement("input", {
+  }, "پیش‌فرض خاموش است — همیشه از انس زنده بک‌اند (gold-api) استفاده می‌شود. فقط اگر تیک بزنی، عدد زیر جایگزین می‌شود.")), /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: !!useManualOunce,
+    onChange: e => setUseManualOunce(e.target.checked),
+    className: "focus-ring",
+    style: {
+      width: 18,
+      height: 18
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: styles.settingRow
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: styles.settingLabel
+  }, "انس دستی (دلار) — فقط با تیک بالا"), /*#__PURE__*/React.createElement("div", {
+    style: styles.settingHint
+  }, "live ounce الان: ", liveOunce != null ? formatNum(Math.round(liveOunce)) : "—")), /*#__PURE__*/React.createElement("input", {
     type: "number",
-    value: setOunceMock,
-    onChange: e => setSetOunceMock(Number(e.target.value)),
+    value: setOunceMock ?? "",
+    onChange: e => setSetOunceMock(e.target.value === "" ? null : Number(e.target.value)),
+    disabled: !useManualOunce,
     className: "mkt-mono focus-ring",
     dir: "ltr",
-    style: styles.settingInput
+    style: {
+      ...styles.settingInput,
+      opacity: useManualOunce ? 1 : 0.45
+    }
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
@@ -3345,6 +3305,7 @@ function MarketDashboard() {
     onClick: () => persistSettings({
       aedPeg: setAedPeg,
       purity: setPurity,
+      useManualOunce,
       ounceMock: setOunceMock,
       troyOunce: setTroyOunce,
       refreshSec: setRefreshSec
@@ -3355,7 +3316,8 @@ function MarketDashboard() {
     onClick: () => {
       setSetAedPeg(3.6725);
       setSetPurity(0.75);
-      setSetOunceMock(4072);
+      setUseManualOunce(false);
+      setSetOunceMock(null);
       setSetTroyOunce(31.103);
       setSetRefreshSec(60);
     },
@@ -3373,7 +3335,7 @@ function MarketDashboard() {
       marginTop: 16,
       lineHeight: 1.9
     }
-  }, "منابع داده در کد تعریف شدن. تنظیمات روی همین مرورگر ذخیره می‌شن."), /*#__PURE__*/React.createElement("div", {
+  }, "همه قیمت‌ها از بک‌اند زنده می‌آیند. تنظیمات فقط ثابت‌ها (پابند/عیار) و override اختیاری انس را نگه می‌دارند."), /*#__PURE__*/React.createElement("div", {
     style: {
       ...styles.panelTitle,
       marginTop: 28
