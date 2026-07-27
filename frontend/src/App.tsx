@@ -107,7 +107,7 @@ type Alert = {
 function BuySell({ buy, sell }: { buy?: number | null; sell?: number | null }) {
   if (buy == null && sell == null) return <span className="text-muted-foreground">—</span>;
   return (
-    <div className="font-mono-nums flex flex-col items-end gap-0.5 text-body">
+    <div className="t-num flex flex-col items-end gap-0.5 t-md">
       <span className="text-buy">{formatToman(buy ?? null)}</span>
       <span className="text-sell">{formatToman(sell ?? null)}</span>
     </div>
@@ -227,8 +227,8 @@ export default function App() {
     <div dir="rtl" lang="fa" className="app-shell">
       <aside className="app-sidebar">
         <div className="border-b border-border px-4 py-4">
-          <div className="text-body-lg font-bold tracking-tight">تابلوی بازار</div>
-          <div className="font-mono-nums text-caption text-muted-foreground">
+          <div className="t-lg font-bold tracking-tight">تابلوی بازار</div>
+          <div className="t-num t-sm text-muted-foreground">
             v{prices?.version || health?.version || "—"}
             {(prices?.gitSha || health?.gitSha) &&
               ` · ${String(prices?.gitSha || health?.gitSha).slice(0, 7)}`}
@@ -250,7 +250,7 @@ export default function App() {
                 <Icon className="size-4 shrink-0 opacity-80" strokeWidth={1.75} />
                 <span className="flex-1">{item.label}</span>
                 {badge > 0 ? (
-                  <span className="rounded-full bg-[color-mix(in_srgb,var(--sell)_20%,transparent)] px-1.5 text-caption font-bold text-sell">
+                  <span className="rounded-full bg-[color-mix(in_srgb,var(--sell)_20%,transparent)] px-1.5 t-sm font-bold text-sell">
                     {badge}
                   </span>
                 ) : null}
@@ -258,7 +258,7 @@ export default function App() {
             );
           })}
         </nav>
-        <div className="border-t border-border p-3 text-caption leading-relaxed text-muted-foreground">
+        <div className="border-t border-border p-3 t-sm leading-relaxed text-muted-foreground">
           shadcn/ui · داده زنده
         </div>
       </aside>
@@ -266,15 +266,15 @@ export default function App() {
       <div className="app-main">
         <header className="app-header">
           <div className="min-w-0">
-            <h1 className="text-page font-bold text-foreground sm:text-display">{meta.title}</h1>
-            <p className="mt-1 text-label text-muted-foreground">{meta.subtitle}</p>
+            <h1 className="t-xl font-bold text-foreground">{meta.title}</h1>
+            <p className="mt-1 t-sm text-muted-foreground">{meta.subtitle}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {prices && !prices.stale ? <Badge variant="live">زنده</Badge> : null}
             {prices?.stale ? <Badge variant="est">آخرین معتبر</Badge> : null}
             {error && !prices ? <Badge variant="danger">خطا</Badge> : null}
             {!prices && !error && loading ? <Badge variant="muted">بارگذاری</Badge> : null}
-            <span className="text-label text-muted-foreground">
+            <span className="t-sm text-muted-foreground">
               بروزرسانی: {timeAgo(updatedAt)}
             </span>
             <Button size="sm" onClick={() => void onRefresh()} disabled={busy}>
@@ -333,7 +333,7 @@ export default function App() {
                         {badge === "live" ? <Badge variant="live">زنده</Badge> : null}
                         {badge === "est" ? <Badge variant="est">تخمینی</Badge> : null}
                       </div>
-                      <CardTitle className="font-mono-nums text-display tracking-tight">
+                      <CardTitle className="t-num-lg font-bold tracking-tight">
                         {value}
                       </CardTitle>
                     </CardHeader>
@@ -387,7 +387,7 @@ export default function App() {
                               <Badge variant="muted">بدون داده</Badge>
                             )}
                           </div>
-                          <table className="data-table text-label">
+                          <table className="data-table">
                             <thead>
                               <tr className="text-muted-foreground">
                                 <th className="py-1 text-right font-medium" />
@@ -409,10 +409,10 @@ export default function App() {
                                   <td className="py-1.5 text-right text-muted-foreground">
                                     {label}
                                   </td>
-                                  <td className="font-mono-nums py-1.5 text-left text-buy">
+                                  <td className="t-num py-1.5 text-left text-buy">
                                     {formatToman(pair?.buy ?? null)}
                                   </td>
-                                  <td className="font-mono-nums py-1.5 text-left text-sell">
+                                  <td className="t-num py-1.5 text-left text-sell">
                                     {formatToman(pair?.sell ?? null)}
                                   </td>
                                 </tr>
@@ -420,7 +420,7 @@ export default function App() {
                               <tr className="border-t border-primary/30 bg-primary/5">
                                 <td className="py-1.5 text-right text-primary">تبدیل طلای جهانی ۱۸</td>
                                 <td
-                                  className="font-mono-nums py-1.5 text-left text-primary"
+                                  className="t-num py-1.5 text-left text-primary"
                                   colSpan={2}
                                 >
                                   {formatToman(melt18 != null ? Math.round(melt18) : null)} /کیلو
@@ -454,22 +454,22 @@ export default function App() {
                     <CardHeader>
                       <CardTitle>{ex.fa}</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-1 text-body">
+                    <CardContent className="space-y-1 t-md">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">حباب درهم</span>
-                        <span className={cn("font-mono-nums", pctColor(bAed.pct))}>
+                        <span className={cn("t-num", pctColor(bAed.pct))}>
                           {bAed.pct != null ? `${bAed.pct.toFixed(2)}%` : "—"}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">حباب طلای ۱۸ (خارجی)</span>
-                        <span className={cn("font-mono-nums", pctColor(bGold.pct))}>
+                        <span className={cn("t-num", pctColor(bGold.pct))}>
                           {bGold.pct != null ? `${bGold.pct.toFixed(2)}%` : "—"}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">فاصله ۱۸ از میانگین داخلی</span>
-                        <span className="font-mono-nums">
+                        <span className="t-num">
                           {g18 != null && domAvg18 != null
                             ? `${(((g18 - domAvg18) / domAvg18) * 100).toFixed(2)}%`
                             : "—"}
@@ -511,8 +511,8 @@ export default function App() {
                       return (
                         <tr key={ex.id} className="border-b border-border/50">
                           <td className="py-2 text-right font-semibold">{ex.fa}</td>
-                          <td className="font-mono-nums py-2 text-left">{formatToman(sell)}</td>
-                          <td className={cn("font-mono-nums py-2 text-left", pctColor(pct))}>
+                          <td className="t-num py-2 text-left">{formatToman(sell)}</td>
+                          <td className={cn("t-num py-2 text-left", pctColor(pct))}>
                             {pct != null ? `${pct.toFixed(2)}%` : "—"}
                           </td>
                         </tr>
@@ -559,14 +559,14 @@ export default function App() {
                       return (
                         <tr key={src.name}>
                           <td className="text-right font-semibold">{src.name}</td>
-                          <td className="font-mono-nums text-left">
+                          <td className="t-num text-left">
                             {usdOunce != null ? formatUsd(usdOunce) : "—"}
                           </td>
-                          <td className="font-mono-nums text-left">
+                          <td className="t-num text-left">
                             {formatToman(eq24 != null ? Math.round(eq24) : null)}
                           </td>
-                          <td className="font-mono-nums text-left">{formatToman(domAvg24)}</td>
-                          <td className={cn("font-mono-nums text-left", pctColor(b.pct))}>
+                          <td className="t-num text-left">{formatToman(domAvg24)}</td>
+                          <td className={cn("t-num text-left", pctColor(b.pct))}>
                             {b.pct != null ? `${b.pct >= 0 ? "+" : ""}${b.pct.toFixed(2)}%` : "—"}
                           </td>
                           <td className="text-left">
@@ -609,8 +609,8 @@ export default function App() {
                       return (
                         <tr key={ex.id} className="border-b border-border/50">
                           <td className="py-2 text-right font-semibold">{ex.fa}</td>
-                          <td className="font-mono-nums py-2 text-left">{formatToman(sell)}</td>
-                          <td className={cn("font-mono-nums py-2 text-left", pctColor(pct))}>
+                          <td className="t-num py-2 text-left">{formatToman(sell)}</td>
+                          <td className={cn("t-num py-2 text-left", pctColor(pct))}>
                             {pct != null ? `${pct.toFixed(2)}%` : "—"}
                           </td>
                         </tr>
@@ -662,14 +662,14 @@ export default function App() {
                       return (
                         <tr key={src.name}>
                           <td className="text-right font-semibold">{src.name}</td>
-                          <td className="font-mono-nums text-left">
+                          <td className="t-num text-left">
                             {usdOunce != null ? formatUsd(usdOunce) : "—"}
                           </td>
-                          <td className="font-mono-nums text-left">
+                          <td className="t-num text-left">
                             {formatToman(eq18 != null ? Math.round(eq18) : null)}
                           </td>
-                          <td className="font-mono-nums text-left">{formatToman(domAvg18)}</td>
-                          <td className={cn("font-mono-nums text-left", pctColor(b.pct))}>
+                          <td className="t-num text-left">{formatToman(domAvg18)}</td>
+                          <td className={cn("t-num text-left", pctColor(b.pct))}>
                             {b.pct != null ? `${b.pct >= 0 ? "+" : ""}${b.pct.toFixed(2)}%` : "—"}
                           </td>
                           <td className="text-left">
@@ -716,11 +716,11 @@ export default function App() {
                       return (
                         <tr key={ex.id} className="border-b border-border/50">
                           <td className="py-2 text-right font-semibold">{ex.fa}</td>
-                          <td className="font-mono-nums py-2 text-left">{formatToman(aed)}</td>
-                          <td className="font-mono-nums py-2 text-left">
+                          <td className="t-num py-2 text-left">{formatToman(aed)}</td>
+                          <td className="t-num py-2 text-left">
                             {formatToman(fair != null ? Math.round(fair) : null)}
                           </td>
-                          <td className={cn("font-mono-nums py-2 text-left", pctColor(b.pct))}>
+                          <td className={cn("t-num py-2 text-left", pctColor(b.pct))}>
                             {b.pct != null ? `${b.pct.toFixed(2)}%` : "—"}
                           </td>
                         </tr>
@@ -758,11 +758,11 @@ export default function App() {
                       return (
                         <tr key={ex.id} className="border-b border-border/50">
                           <td className="py-2 text-right font-semibold">{ex.fa}</td>
-                          <td className="font-mono-nums py-2 text-left">{formatToman(usd)}</td>
-                          <td className="font-mono-nums py-2 text-left">
+                          <td className="t-num py-2 text-left">{formatToman(usd)}</td>
+                          <td className="t-num py-2 text-left">
                             {formatToman(impl != null ? Math.round(impl) : null)}
                           </td>
-                          <td className={cn("font-mono-nums py-2 text-left", pctColor(b.pct))}>
+                          <td className={cn("t-num py-2 text-left", pctColor(b.pct))}>
                             {b.pct != null ? `${b.pct.toFixed(2)}%` : "—"}
                           </td>
                         </tr>
@@ -771,7 +771,7 @@ export default function App() {
                   </tbody>
                 </table>
                 {marketAed == null ? (
-                  <p className="mt-3 text-label text-warn">
+                  <p className="mt-3 t-sm text-warn">
                     درهم زنده نیست — برای حباب دلار دقیق، NAVASAN_API_KEY لازم است.
                   </p>
                 ) : null}
@@ -789,10 +789,10 @@ export default function App() {
                     <CardDescription>دلار ÷ {settings.aedPeg}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="font-mono-nums text-body text-muted-foreground">
+                    <div className="t-num t-md text-muted-foreground">
                       {formatToman(marketUsd)} ÷ {settings.aedPeg}
                     </div>
-                    <div className="font-mono-nums mt-1 text-display font-bold text-primary">
+                    <div className="t-num mt-1 t-num-lg font-bold text-primary">
                       {formatToman(fairAed)} تومان
                     </div>
                   </CardContent>
@@ -803,10 +803,10 @@ export default function App() {
                     <CardDescription>درهم × {settings.aedPeg}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="font-mono-nums text-body text-muted-foreground">
+                    <div className="t-num t-md text-muted-foreground">
                       {formatToman(marketAed)} × {settings.aedPeg}
                     </div>
-                    <div className="font-mono-nums mt-1 text-display font-bold text-primary">
+                    <div className="t-num mt-1 t-num-lg font-bold text-primary">
                       {formatToman(fairUsdFromAed)} تومان
                     </div>
                   </CardContent>
@@ -819,7 +819,7 @@ export default function App() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="font-mono-nums text-display font-bold">
+                    <div className="t-num t-num-lg font-bold">
                       {formatToman(
                         Math.round(
                           gold18FromKg(
@@ -842,7 +842,7 @@ export default function App() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="font-mono-nums text-display font-bold">
+                    <div className="t-num t-num-lg font-bold">
                       {formatToman(
                         Math.round(
                           gold24FromKg(marketUsd, ounceUsd, settings.troyOunce) || 0
@@ -858,7 +858,7 @@ export default function App() {
                 <CardHeader>
                   <CardTitle>مرجع فرمول‌ها</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2 text-body leading-8 text-muted-foreground">
+                <CardContent className="space-y-2 t-md leading-8 text-muted-foreground">
                   <p>حباب درهم = درهم بازار − (دلار ÷ {settings.aedPeg})</p>
                   <p>حباب دلار = دلار بازار − (درهم × {settings.aedPeg})</p>
                   <p>آربیتراژ طلای داخلی = قیمت صرافی − میانگین همان کالا بین صرافی‌ها</p>
@@ -888,7 +888,7 @@ export default function App() {
                   <CardTitle>ساخت هشدار</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-wrap items-end gap-3">
-                  <label className="text-body">
+                  <label className="t-md">
                     دارایی
                     <select
                       className="mt-1 block rounded-md border border-border bg-background px-3 py-2"
@@ -902,7 +902,7 @@ export default function App() {
                       <option value="ounce">انس</option>
                     </select>
                   </label>
-                  <label className="text-body">
+                  <label className="t-md">
                     شرط
                     <select
                       className="mt-1 block rounded-md border border-border bg-background px-3 py-2"
@@ -913,10 +913,10 @@ export default function App() {
                       <option value="below">پایین‌تر از</option>
                     </select>
                   </label>
-                  <label className="text-body">
+                  <label className="t-md">
                     مقدار
                     <input
-                      className="font-mono-nums mt-1 block rounded-md border border-border bg-background px-3 py-2"
+                      className="t-num mt-1 block rounded-md border border-border bg-background px-3 py-2"
                       value={alertValue}
                       onChange={(e) => setAlertValue(e.target.value.replace(/[^0-9.]/g, ""))}
                       placeholder="مثلا 190000"
@@ -949,7 +949,7 @@ export default function App() {
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {alerts.length === 0 ? (
-                    <p className="text-body text-muted-foreground">هشداری نیست.</p>
+                    <p className="t-md text-muted-foreground">هشداری نیست.</p>
                   ) : (
                     alerts.map((a) => {
                       const on = alertTriggered(a);
@@ -962,10 +962,10 @@ export default function App() {
                             on ? "border-[color-mix(in_srgb,var(--sell)_45%,transparent)] bg-[color-mix(in_srgb,var(--sell)_10%,transparent)]" : "border-border"
                           )}
                         >
-                          <div className="text-body">
+                          <div className="t-md">
                             <span className="font-semibold">{a.asset}</span>{" "}
                             {a.cond === "above" ? "≥" : "≤"}{" "}
-                            <span className="font-mono-nums">{formatToman(a.value)}</span>
+                            <span className="t-num">{formatToman(a.value)}</span>
                             <span className="mr-2 text-muted-foreground">
                               · فعلی: {formatToman(cur)}
                             </span>
@@ -1018,7 +1018,7 @@ export default function App() {
                 <Card>
                   <CardHeader>
                     <CardDescription>Refresh</CardDescription>
-                    <CardTitle className="font-mono-nums">
+                    <CardTitle className="t-num">
                       {health?.refreshSec ?? "—"}s
                     </CardTitle>
                   </CardHeader>
@@ -1038,12 +1038,12 @@ export default function App() {
                       <div>
                         <div className="font-semibold">{r.label}</div>
                         {!r.ok && r.error ? (
-                          <div className="max-w-xl truncate text-label text-sell">{r.error}</div>
+                          <div className="max-w-xl truncate t-sm text-sell">{r.error}</div>
                         ) : null}
                       </div>
                       <div className="flex items-center gap-2">
                         {r.ms != null ? (
-                          <span className="font-mono-nums text-label text-muted-foreground">
+                          <span className="t-num t-sm text-muted-foreground">
                             {r.ms}ms
                           </span>
                         ) : null}
@@ -1072,12 +1072,12 @@ export default function App() {
                     ["refreshSec", "بازه UI refresh (ثانیه)", settings.refreshSec],
                   ] as const
                 ).map(([key, label, val]) => (
-                  <label key={key} className="block text-body">
+                  <label key={key} className="block t-md">
                     <span className="text-muted-foreground">{label}</span>
                     <input
                       type="number"
                       step="any"
-                      className="font-mono-nums mt-1 w-full rounded-md border border-border bg-background px-3 py-2"
+                      className="t-num mt-1 w-full rounded-md border border-border bg-background px-3 py-2"
                       dir="ltr"
                       value={val}
                       onChange={(e) =>
@@ -1089,7 +1089,7 @@ export default function App() {
                     />
                   </label>
                 ))}
-                <p className="text-label text-muted-foreground">
+                <p className="t-sm text-muted-foreground">
                   کلید Navasan سرور-ساید است (فایل .env روی سرور: NAVASAN_API_KEY). برای دلار/درهم/طلای
                   free-market واقعی آن را ست کنید.
                 </p>
@@ -1098,7 +1098,7 @@ export default function App() {
           ) : null}
 
           <Separator />
-          <footer className="flex flex-wrap items-center justify-between gap-2 pb-6 text-label text-muted-foreground">
+          <footer className="flex flex-wrap items-center justify-between gap-2 pb-6 t-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <Activity className="size-3.5" />
               shadcn/ui · همه صفحات قبلی · data از FastAPI

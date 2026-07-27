@@ -3,18 +3,16 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
-  Design system — Gold Bubble (shadcn-compatible)
-  Type: Vazirmatn (UI) + JetBrains Mono (numbers)
-  Scale (px): 11 caption · 12 label · 13 body · 14 body-lg · 16 title · 18 page · 22 display · 28 hero
-  Radius: 8 / 12 / 16
-  Colors: navy surface + gold primary + semantic buy/sell only
+  STRICT typography — whole panel
+  UI text:  Vazirmatn only  (13 / 15 / 18)
+  Numbers:  JetBrains Mono only
+  Weights:  400 body · 600 label/nav · 700 titles
 */
 
 @theme inline {
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
-  --radius-xl: 20px;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -42,59 +40,36 @@
 :root {
   --radius: 12px;
 
-  /* Surfaces — cool navy, low chroma */
   --background: #0b1220;
   --foreground: #e8edf5;
   --card: #121b2c;
   --card-foreground: #e8edf5;
   --popover: #121b2c;
   --popover-foreground: #e8edf5;
-
-  /* Brand gold — one hue only */
   --primary: #c9a227;
   --primary-foreground: #0b1220;
-
   --secondary: #1a2436;
   --secondary-foreground: #e8edf5;
   --muted: #162033;
   --muted-foreground: #8b96a8;
   --accent: #1c2840;
   --accent-foreground: #e8edf5;
-
-  /* Semantic */
   --destructive: #e85d4c;
   --buy: #3dba8c;
   --sell: #e85d4c;
-  --warning: #c9a227;
-
   --border: rgba(255, 255, 255, 0.08);
   --input: #162033;
   --ring: #c9a227;
 
-  /* Type scale */
-  --text-caption: 0.6875rem; /* 11 */
-  --text-label: 0.75rem; /* 12 */
-  --text-body: 0.8125rem; /* 13 */
-  --text-body-lg: 0.875rem; /* 14 */
-  --text-title: 1rem; /* 16 */
-  --text-page: 1.125rem; /* 18 */
-  --text-display: 1.375rem; /* 22 */
-  --text-hero: 1.75rem; /* 28 */
-
-  --leading-tight: 1.25;
-  --leading-normal: 1.5;
-  --leading-relaxed: 1.7;
-
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
+  /* Only 3 UI sizes + 1 number size */
+  --fs-sm: 12px; /* meta, badge, table header, captions */
+  --fs-md: 13px; /* body, nav, table cells, buttons, labels */
+  --fs-lg: 15px; /* card titles, brand, section heads */
+  --fs-xl: 18px; /* page title only */
+  --fs-num: 15px; /* all prices / mono numbers */
+  --fs-num-lg: 20px; /* hero stat numbers only */
 
   --sidebar-w: 260px;
-  --header-h: 64px;
 }
 
 @layer base {
@@ -105,25 +80,65 @@
     color-scheme: dark;
     font-size: 16px;
   }
+  html,
+  body,
+  #root {
+    font-family: var(--font-sans) !important;
+  }
   body {
     min-height: 100vh;
     margin: 0;
     color: var(--foreground);
-    font-family: var(--font-sans);
-    font-size: var(--text-body);
-    line-height: var(--leading-normal);
+    font-size: var(--fs-md);
     font-weight: 400;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
     background: var(--background);
   }
+  /* Kill accidental mixed heading sizes from browser defaults */
   h1,
   h2,
-  h3 {
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-sans) !important;
     font-weight: 700;
-    line-height: var(--leading-tight);
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  h1 {
+    font-size: var(--fs-xl) !important;
+  }
+  h2,
+  h3 {
+    font-size: var(--fs-lg) !important;
+  }
+  p,
+  span,
+  label,
+  button,
+  a,
+  li,
+  td,
+  th,
+  div {
+    font-family: inherit;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font-family: var(--font-sans) !important;
+    font-size: var(--fs-md);
+  }
+  /* Numbers: ONLY mono via class */
+  .font-mono-nums,
+  .font-mono-nums * {
+    font-family: var(--font-mono) !important;
+    font-variant-numeric: tabular-nums lining-nums;
     letter-spacing: -0.02em;
-    color: var(--foreground);
   }
   ::selection {
     background: color-mix(in srgb, var(--primary) 35%, transparent);
@@ -137,52 +152,41 @@
     background: rgba(255, 255, 255, 0.1);
     border-radius: 99px;
   }
-  input,
-  button,
-  select,
-  textarea {
-    font-family: inherit;
-    font-size: inherit;
-  }
 }
 
+/* Type utilities — use ONLY these (no text-xs/sm/xl/2xl) */
 @layer utilities {
-  .font-mono-nums {
-    font-family: var(--font-mono);
+  .t-sm {
+    font-size: var(--fs-sm) !important;
+    line-height: 1.45 !important;
+    font-family: var(--font-sans) !important;
+  }
+  .t-md {
+    font-size: var(--fs-md) !important;
+    line-height: 1.5 !important;
+    font-family: var(--font-sans) !important;
+  }
+  .t-lg {
+    font-size: var(--fs-lg) !important;
+    line-height: 1.35 !important;
+    font-family: var(--font-sans) !important;
+  }
+  .t-xl {
+    font-size: var(--fs-xl) !important;
+    line-height: 1.3 !important;
+    font-family: var(--font-sans) !important;
+  }
+  .t-num {
+    font-size: var(--fs-num) !important;
+    line-height: 1.35 !important;
+    font-family: var(--font-mono) !important;
     font-variant-numeric: tabular-nums lining-nums;
-    letter-spacing: -0.02em;
   }
-  .text-caption {
-    font-size: var(--text-caption);
-    line-height: var(--leading-normal);
-  }
-  .text-label {
-    font-size: var(--text-label);
-    line-height: var(--leading-normal);
-  }
-  .text-body {
-    font-size: var(--text-body);
-    line-height: var(--leading-normal);
-  }
-  .text-body-lg {
-    font-size: var(--text-body-lg);
-    line-height: var(--leading-normal);
-  }
-  .text-title {
-    font-size: var(--text-title);
-    line-height: var(--leading-tight);
-  }
-  .text-page {
-    font-size: var(--text-page);
-    line-height: var(--leading-tight);
-  }
-  .text-display {
-    font-size: var(--text-display);
-    line-height: var(--leading-tight);
-  }
-  .text-hero {
-    font-size: var(--text-hero);
-    line-height: var(--leading-tight);
+  .t-num-lg {
+    font-size: var(--fs-num-lg) !important;
+    line-height: 1.25 !important;
+    font-family: var(--font-mono) !important;
+    font-variant-numeric: tabular-nums lining-nums;
   }
   .text-buy {
     color: var(--buy);
@@ -191,7 +195,7 @@
     color: var(--sell);
   }
   .text-warn {
-    color: var(--warning);
+    color: var(--primary);
   }
 }
 
@@ -199,8 +203,9 @@
   .app-shell {
     display: flex;
     min-height: 100vh;
+    font-family: var(--font-sans);
+    font-size: var(--fs-md);
   }
-
   .app-sidebar {
     position: sticky;
     top: 0;
@@ -213,54 +218,51 @@
     border-left: 1px solid var(--border);
     background: var(--card);
   }
-
   .app-main {
     min-width: 0;
     flex: 1 1 auto;
     display: flex;
     flex-direction: column;
   }
-
   .app-header {
     position: sticky;
     top: 0;
     z-index: 10;
     display: flex;
-    min-height: var(--header-h);
+    min-height: 60px;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: var(--space-3);
+    gap: 12px;
     border-bottom: 1px solid var(--border);
-    background: color-mix(in srgb, var(--background) 88%, transparent);
-    padding: var(--space-3) var(--space-5);
+    background: color-mix(in srgb, var(--background) 90%, transparent);
+    padding: 12px 20px;
     backdrop-filter: blur(12px);
   }
-
   .app-content {
     display: flex;
     flex: 1;
     flex-direction: column;
-    gap: var(--space-5);
-    padding: var(--space-5);
+    gap: 20px;
+    padding: 20px;
   }
 
   .nav-item {
     display: flex;
     width: 100%;
     align-items: center;
-    gap: var(--space-2);
+    gap: 8px;
     border-radius: var(--radius-md);
     border: 1px solid transparent;
     padding: 10px 12px;
     text-align: right;
-    font-size: var(--text-body);
+    font-size: var(--fs-md) !important;
     font-weight: 600;
-    line-height: var(--leading-tight);
+    line-height: 1.35;
+    font-family: var(--font-sans) !important;
     transition:
       background 0.15s ease,
-      color 0.15s ease,
-      border-color 0.15s ease;
+      color 0.15s ease;
   }
   .nav-item-idle {
     color: var(--muted-foreground);
@@ -278,51 +280,58 @@
   .data-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: var(--text-body);
-  }
-  .data-table thead tr {
-    border-bottom: 1px solid var(--border);
+    font-size: var(--fs-md) !important;
+    font-family: var(--font-sans) !important;
   }
   .data-table th {
     padding: 10px 12px;
-    font-size: var(--text-label);
+    font-size: var(--fs-sm) !important;
     font-weight: 600;
     color: var(--muted-foreground);
+    font-family: var(--font-sans) !important;
   }
   .data-table td {
     padding: 10px 12px;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    font-size: var(--fs-md) !important;
     vertical-align: middle;
   }
   .data-table tbody tr:hover {
     background: rgba(255, 255, 255, 0.025);
+  }
+  .data-table .t-num,
+  .data-table .font-mono-nums {
+    font-size: var(--fs-num) !important;
   }
 
   .ex-tile {
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
     background: var(--muted);
-    padding: var(--space-3);
+    padding: 12px;
+    font-size: var(--fs-md);
   }
 
   .field-input {
     display: block;
     width: 100%;
-    margin-top: var(--space-1);
+    margin-top: 4px;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border);
     background: var(--input);
     padding: 8px 12px;
     color: var(--foreground);
-    font-size: var(--text-body);
+    font-size: var(--fs-md) !important;
+    font-family: var(--font-sans) !important;
     outline: none;
-    transition:
-      border-color 0.15s ease,
-      box-shadow 0.15s ease;
   }
   .field-input:focus {
     border-color: color-mix(in srgb, var(--primary) 55%, transparent);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+  }
+  .field-input.font-mono-nums {
+    font-family: var(--font-mono) !important;
+    font-size: var(--fs-num) !important;
   }
 }
 
@@ -342,7 +351,7 @@
     flex-direction: row;
     flex-wrap: wrap;
     gap: 6px;
-    padding: var(--space-3);
+    padding: 12px;
   }
   .nav-item {
     width: auto;
@@ -350,6 +359,6 @@
     min-width: 140px;
   }
   .app-content {
-    padding: var(--space-4);
+    padding: 16px;
   }
 }
