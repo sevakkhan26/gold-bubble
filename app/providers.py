@@ -27,17 +27,18 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def fetch_json(url: str, timeout: float = 10.0, retries: int = 1) -> tuple[Any, int]:
+def fetch_json(url: str, timeout: float = 15.0, retries: int = 2) -> tuple[Any, int]:
     """GET JSON with timeout + retry. Honours HTTP(S)_PROXY via trust_env."""
     last: Exception | None = None
     headers = {"User-Agent": _UA, "Accept": "application/json,text/plain,*/*"}
+    # Generous timeouts — IR edges + mtproxier are often slow under parallel load.
+    to = httpx.Timeout(timeout, connect=10.0)
     for attempt in range(retries + 1):
         started = time.time()
         try:
-            with httpx.Client(timeout=timeout, trust_env=True, headers=headers) as client:
+            with httpx.Client(timeout=to, trust_env=True, headers=headers) as client:
                 r = client.get(url)
             r.raise_for_status()
-            # Some APIs return text JSON with wrong content-type
             try:
                 return r.json(), int((time.time() - started) * 1000)
             except Exception:
@@ -47,7 +48,7 @@ def fetch_json(url: str, timeout: float = 10.0, retries: int = 1) -> tuple[Any, 
         except Exception as e:  # noqa: BLE001
             last = e
             if attempt < retries:
-                time.sleep(0.25 * (attempt + 1))
+                time.sleep(0.4 * (attempt + 1))
     assert last is not None
     raise last
 
@@ -426,8 +427,10 @@ def build_model(
         wanted.append("brsapi")
 
     results: list[dict] = []
-    # Parallel fetch — board has many venues
-    with ThreadPoolExecutor(max_workers=min(12, len(wanted))) as pool:
+    # Modest parallelism — too many concurrent TLS handshakes through the
+    # outbound proxy causes widespread timeouts on this host.
+    workers = min(4, len(wanted))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
         futs = {
             pool.submit(run_source, n, keys, overrides, timeout): n for n in wanted
         }
