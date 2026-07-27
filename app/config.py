@@ -62,7 +62,7 @@ OVERRIDES = {
         "nobitex": "NOBITEX_URL",
         "wallex": "WALLEX_URL",
         "gold_api": "GOLDAPI_URL",
-        "goldprice_org": "GOLDPRICEORG_URL",
+        "currency_api_xau": "CURRENCY_API_XAU_URL",
         "coingecko": "COINGECKO_URL",
         "navasan": "NAVASAN_URL",
         "navasan_web": "NAVASAN_WEB_URL",

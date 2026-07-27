@@ -15,6 +15,7 @@ from app.providers import (  # noqa: E402
     map_abantether_ticker,
     map_bitpin_book,
     map_gold_api,
+    map_currency_api_xau,
     map_goldprice_org,
     map_navasan,
     map_nobitex_depth,
@@ -121,6 +122,7 @@ def test_parse_navasan_initrates():
 def test_map_gold_api_and_goldprice():
     assert map_gold_api({"price": 4072.5}) == 4072.5
     assert map_goldprice_org({"items": [{"curr": "USD", "xauPrice": 4070.2}]}) == 4070.2
+    assert map_currency_api_xau({"date": "2026-07-26", "xau": {"usd": 4055.92}}) == 4055.92
 
 
 def _fake_text(url, timeout=8.0, retries=1):
@@ -191,6 +193,8 @@ def _fake_fetch(url, timeout=8.0, retries=1):
         return ({"data": [["6,250,000", "x"]]}, 5)
     if "gold-api.com" in u:
         return ({"price": 4072}, 5)
+    if "currency-api" in u or "currencies/xau" in u:
+        return ({"date": "2026-07-26", "xau": {"usd": 4070}}, 5)
     if "goldprice.org" in u:
         return ({"items": [{"xauPrice": 4070}]}, 5)
     if "coingecko" in u:

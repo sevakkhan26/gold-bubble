@@ -207,8 +207,17 @@ def map_gold_api(j: dict) -> float | None:
 
 
 def map_goldprice_org(j: dict) -> float | None:
+    """Legacy goldprice.org shape (often 403 / rate-limited)."""
     items = j.get("items") or []
     return _num(items[0].get("xauPrice")) if items else None
+
+
+def map_currency_api_xau(j: dict) -> float | None:
+    """fawazahmed0 currency-api: { xau: { usd: <USD per troy oz> } }."""
+    xau = j.get("xau") if isinstance(j, dict) else None
+    if isinstance(xau, dict):
+        return _num(xau.get("usd"))
+    return None
 
 
 def parse_navasan_initrates(text: str) -> dict:
@@ -411,12 +420,12 @@ def _sources(keys: dict) -> dict[str, SourceSpec]:
             "https://api.abantether.com/api/v1/manager/otc/ticker",
             map_abantether_ticker,
         ),
-        # Global gold
+        # Global gold (primary + free CDN backup; goldprice.org is 403/rate-limited)
         "gold_api": ("gold-api.com XAU", "https://api.gold-api.com/price/XAU", map_gold_api),
-        "goldprice_org": (
-            "goldprice.org XAU",
-            "https://data-asg.goldprice.org/dbXRates/USD",
-            map_goldprice_org,
+        "currency_api_xau": (
+            "Currency-API XAU",
+            "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/xau.json",
+            map_currency_api_xau,
         ),
         "coingecko": (
             "CoinGecko PAXG/XAUT",
@@ -523,7 +532,7 @@ def build_model(
         "tetherland",
         "abantether",
         "gold_api",
-        "goldprice_org",
+        "currency_api_xau",
         "coingecko",
     ]
     if navasan_key:
@@ -586,8 +595,8 @@ def build_model(
     ounce = ounce_src = None
     if by.get("gold_api", {}).get("value") is not None:
         ounce, ounce_src = by["gold_api"]["value"], "gold-api.com"
-    elif by.get("goldprice_org", {}).get("value") is not None:
-        ounce, ounce_src = by["goldprice_org"]["value"], "goldprice.org"
+    elif by.get("currency_api_xau", {}).get("value") is not None:
+        ounce, ounce_src = by["currency_api_xau"]["value"], "Currency-API"
     elif foreign and foreign.get("pax-gold") is not None:
         ounce, ounce_src = foreign["pax-gold"], "CoinGecko(PAXG)"
     if ounce is not None:
