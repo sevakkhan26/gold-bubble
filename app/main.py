@@ -31,6 +31,7 @@ SPA_ROUTES = {
     "baed",
     "busd",
     "settings",
+    "sources",
 }
 
 

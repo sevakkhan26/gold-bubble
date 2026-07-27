@@ -19,6 +19,7 @@ import { usePrices } from "@/hooks/usePrices";
 import {
   DEFAULT_SETTINGS,
   EXCHANGES,
+  FOREIGN_GOLD,
   avgOf,
   bubble,
   gold18FromKg,
@@ -44,6 +45,27 @@ type PageId =
   | "alerts"
   | "settings"
   | "sources";
+
+const PAGE_ROUTES: Record<PageId, string> = {
+  market: "/market",
+  bubbles: "/bubbles",
+  formulas: "/formulas",
+  b24dom: "/b24dom",
+  b24for: "/b24for",
+  b18dom: "/b18dom",
+  b18for: "/b18for",
+  baed: "/baed",
+  busd: "/busd",
+  alerts: "/alerts",
+  settings: "/settings",
+  sources: "/sources",
+};
+
+function pageFromPath(pathname: string): PageId {
+  const p = pathname.replace(/\/+$/, "") || "/";
+  const hit = (Object.entries(PAGE_ROUTES) as [PageId, string][]).find(([, path]) => path === p);
+  return hit?.[0] ?? "market";
+}
 
 const NAV: { id: PageId; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "market", label: "مانیتورینگ بازار", icon: LayoutDashboard },
@@ -101,8 +123,27 @@ function pctColor(pct: number | null) {
 
 export default function App() {
   const { prices, health, report, error, loading, updatedAt, refresh } = usePrices();
-  const [page, setPage] = useState<PageId>("market");
+  const [page, setPage] = useState<PageId>(() =>
+    typeof window !== "undefined" ? pageFromPath(window.location.pathname) : "market"
+  );
   const [busy, setBusy] = useState(false);
+
+  const navigate = (id: PageId) => {
+    setPage(id);
+    const path = PAGE_ROUTES[id];
+    if (window.location.pathname !== path) {
+      window.history.pushState({ page: id }, "", path);
+    }
+  };
+
+  useEffect(() => {
+    const onPop = () => setPage(pageFromPath(window.location.pathname));
+    window.addEventListener("popstate", onPop);
+    if (window.location.pathname === "/" || window.location.pathname === "") {
+      window.history.replaceState({ page: "market" }, "", "/market");
+    }
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   const [settings, setSettings] = useState<Settings>(() => {
     try {
       const raw = localStorage.getItem("gb-settings");
@@ -183,20 +224,17 @@ export default function App() {
   const meta = PAGE_META[page];
 
   return (
-    <div dir="rtl" lang="fa" className="flex min-h-screen">
+    <div dir="rtl" lang="fa" className="app-shell">
       <link
         rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
       />
 
-      {/* Sidebar — same pages as before */}
-      <aside className="sticky top-0 flex h-screen w-[250px] shrink-0 flex-col border-l border-border bg-card">
-        <div className="flex items-center gap-3 border-b border-border px-4 py-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-lg font-extrabold text-primary">
-            ﷼
-          </div>
+      <aside className="app-sidebar">
+        <div className="flex items-center gap-3 border-b border-border/80 px-4 py-5">
+          <div className="logo-mark">﷼</div>
           <div>
-            <div className="text-sm font-extrabold">تابلوی بازار</div>
+            <div className="text-[15px] font-extrabold tracking-tight">تابلوی بازار</div>
             <div className="font-mono-nums text-[10px] text-muted-foreground">
               v{prices?.version || health?.version || "—"}
               {(prices?.gitSha || health?.gitSha) &&
@@ -214,18 +252,13 @@ export default function App() {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setPage(item.id)}
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-right text-[13px] font-semibold transition-colors",
-                  active
-                    ? "border-primary/40 bg-primary/15 text-primary"
-                    : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-                )}
+                onClick={() => navigate(item.id)}
+                className={cn("nav-item", active ? "nav-item-active" : "nav-item-idle")}
               >
-                <Icon className="size-4 shrink-0" />
+                <Icon className="size-4 shrink-0 opacity-90" />
                 <span className="flex-1">{item.label}</span>
                 {badge > 0 ? (
-                  <span className="rounded-full bg-red-500/20 px-1.5 text-[10px] text-red-400">
+                  <span className="rounded-full bg-red-500/25 px-1.5 text-[10px] font-bold text-red-400">
                     {badge}
                   </span>
                 ) : null}
@@ -233,19 +266,24 @@ export default function App() {
             );
           })}
         </nav>
+        <div className="border-t border-border/60 p-3 text-[10px] leading-relaxed text-muted-foreground">
+          shadcn/ui · داده زنده از FastAPI
+        </div>
       </aside>
 
-      {/* Main */}
-      <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background/90 px-5 py-3 backdrop-blur">
+      <div className="app-main">
+        <header className="app-header">
           <div>
-            <h1 className="text-xl font-extrabold tracking-tight">{meta.title}</h1>
-            <p className="text-sm text-muted-foreground">{meta.subtitle}</p>
+            <h1 className="bg-gradient-to-l from-primary/90 to-foreground bg-clip-text text-xl font-extrabold tracking-tight text-transparent sm:text-2xl">
+              {meta.title}
+            </h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">{meta.subtitle}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {prices && !prices.stale ? <Badge variant="live">● زنده</Badge> : null}
             {prices?.stale ? <Badge variant="est">● آخرین معتبر</Badge> : null}
             {error && !prices ? <Badge variant="danger">● خطا</Badge> : null}
+            {!prices && !error && loading ? <Badge variant="muted">در حال بارگذاری</Badge> : null}
             <span className="text-xs text-muted-foreground">بروزرسانی: {timeAgo(updatedAt)}</span>
             <Button size="sm" onClick={() => void onRefresh()} disabled={busy}>
               <RefreshCw className={cn("size-4", busy && "animate-spin")} />
@@ -254,7 +292,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className="space-y-5 p-5">
+        <main className="space-y-5 p-4 sm:p-6">
           {error && !prices ? (
             <Card className="border-destructive/40">
               <CardHeader>
@@ -276,52 +314,46 @@ export default function App() {
           {page === "market" && prices ? (
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardDescription>انس جهانی</CardDescription>
-                    <CardTitle className="font-mono-nums text-2xl">
-                      {formatUsd(ounceUsd)} $
-                    </CardTitle>
-                  </CardHeader>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between">
-                      <CardDescription>دلار بازار</CardDescription>
-                      {prices.estimated?.usd ? (
-                        <Badge variant="est">تخمینی</Badge>
-                      ) : (
-                        <Badge variant="live">زنده</Badge>
-                      )}
-                    </div>
-                    <CardTitle className="font-mono-nums text-2xl">
-                      {formatToman(marketUsd)}
-                    </CardTitle>
-                  </CardHeader>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardDescription>تتر نوبیتکس</CardDescription>
-                    <CardTitle className="font-mono-nums text-2xl">
-                      {formatToman(pickSell(prices.usdtByExchange?.nobitex))}
-                    </CardTitle>
-                  </CardHeader>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardDescription>تتر والکس</CardDescription>
-                    <CardTitle className="font-mono-nums text-2xl">
-                      {formatToman(pickSell(prices.usdtByExchange?.wallex))}
-                    </CardTitle>
-                  </CardHeader>
-                </Card>
+                {(
+                  [
+                    ["انس جهانی", formatUsd(ounceUsd) + " $", null as string | null],
+                    [
+                      "دلار بازار",
+                      formatToman(marketUsd),
+                      prices.estimated?.usd ? "est" : "live",
+                    ],
+                    [
+                      "تتر نوبیتکس",
+                      formatToman(pickSell(prices.usdtByExchange?.nobitex)),
+                      "live",
+                    ],
+                    [
+                      "تتر والکس",
+                      formatToman(pickSell(prices.usdtByExchange?.wallex)),
+                      "live",
+                    ],
+                  ] as const
+                ).map(([label, value, badge]) => (
+                  <div key={label} className="stat-card">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <CardDescription>{label}</CardDescription>
+                        {badge === "live" ? <Badge variant="live">زنده</Badge> : null}
+                        {badge === "est" ? <Badge variant="est">تخمینی</Badge> : null}
+                      </div>
+                      <CardTitle className="font-mono-nums text-2xl tracking-tight">
+                        {value}
+                      </CardTitle>
+                    </CardHeader>
+                  </div>
+                ))}
               </div>
 
-              <Card>
+              <Card className="stat-card border-border/80 shadow-md">
                 <CardHeader>
                   <CardTitle>قیمت به تومان — همه صرافی‌ها</CardTitle>
                   <CardDescription>
-                    داده فقط از بک‌اند؛ صرافی بدون connector = بدون داده (نه mock)
+                    داده زنده از بک‌اند · نوبیتکس تا تترلند + بن‌بست/نوسان
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -337,10 +369,7 @@ export default function App() {
                         settings.purity
                       );
                       return (
-                        <div
-                          key={ex.id}
-                          className="rounded-xl border border-border bg-muted/20 p-3"
-                        >
+                        <div key={ex.id} className="ex-tile">
                           <div className="mb-2 flex items-center justify-between gap-2">
                             <span className="font-bold">{ex.fa}</span>
                             {has ? (
@@ -503,40 +532,57 @@ export default function App() {
             </Card>
           ) : null}
 
-          {/* ---- 24k foreign ---- */}
+          {/* ---- 24k foreign (live global sources) ---- */}
           {page === "b24for" && prices ? (
-            <Card>
+            <Card className="stat-card">
               <CardHeader>
-                <CardTitle>حباب شمش ۲۴ vs جهانی</CardTitle>
+                <CardTitle>حباب طلای ۲۴ عیار خارجی</CardTitle>
                 <CardDescription>
-                  انس {formatUsd(ounceUsd)} · دلار مرجع {formatToman(marketUsd)}
+                  انس × دلار ÷ {settings.troyOunce} × ۱۰۰۰ · دلار مرجع {formatToman(marketUsd)}
                 </CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="data-table">
                   <thead>
-                    <tr className="border-b text-muted-foreground">
-                      <th className="py-2 text-right">صرافی</th>
-                      <th className="py-2 text-left">فروش ۲۴</th>
-                      <th className="py-2 text-left">ارزش جهانی ۲۴</th>
-                      <th className="py-2 text-left">حباب ٪</th>
+                    <tr>
+                      <th className="text-right">منبع خارجی</th>
+                      <th className="text-left">قیمت اونس ($)</th>
+                      <th className="text-left">معادل ۲۴ (کیلو)</th>
+                      <th className="text-left">میانگین ۲۴ داخلی</th>
+                      <th className="text-left">حباب ٪</th>
+                      <th className="text-left">وضعیت</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {EXCHANGES.map((ex) => {
-                      const sell = pickSell(rates[ex.id]?.shemsh24);
-                      const dollar = pickSell(rates[ex.id]?.usd) ?? marketUsd;
-                      const fair = gold24FromKg(dollar, ounceUsd, settings.troyOunce);
-                      const b = bubble(sell, fair);
+                    {FOREIGN_GOLD.map((src) => {
+                      const liveVal =
+                        "coinId" in src && src.coinId
+                          ? prices.foreignGold?.[src.coinId] ?? null
+                          : ounceUsd;
+                      const usdOunce =
+                        typeof liveVal === "number" && liveVal > 0 ? liveVal : null;
+                      const eq24 = gold24FromKg(marketUsd, usdOunce, settings.troyOunce);
+                      const b = bubble(eq24, domAvg24);
+                      const isReal = usdOunce != null;
                       return (
-                        <tr key={ex.id} className="border-b border-border/50">
-                          <td className="py-2 text-right font-semibold">{ex.fa}</td>
-                          <td className="font-mono-nums py-2 text-left">{formatToman(sell)}</td>
-                          <td className="font-mono-nums py-2 text-left">
-                            {formatToman(fair != null ? Math.round(fair) : null)}
+                        <tr key={src.name}>
+                          <td className="text-right font-semibold">{src.name}</td>
+                          <td className="font-mono-nums text-left">
+                            {usdOunce != null ? formatUsd(usdOunce) : "—"}
                           </td>
-                          <td className={cn("font-mono-nums py-2 text-left", pctColor(b.pct))}>
-                            {b.pct != null ? `${b.pct.toFixed(2)}%` : "—"}
+                          <td className="font-mono-nums text-left">
+                            {formatToman(eq24 != null ? Math.round(eq24) : null)}
+                          </td>
+                          <td className="font-mono-nums text-left">{formatToman(domAvg24)}</td>
+                          <td className={cn("font-mono-nums text-left", pctColor(b.pct))}>
+                            {b.pct != null ? `${b.pct >= 0 ? "+" : ""}${b.pct.toFixed(2)}%` : "—"}
+                          </td>
+                          <td className="text-left">
+                            {isReal ? (
+                              <Badge variant="live">زنده</Badge>
+                            ) : (
+                              <Badge variant="danger">بدون داده</Badge>
+                            )}
                           </td>
                         </tr>
                       );
@@ -584,42 +630,62 @@ export default function App() {
             </Card>
           ) : null}
 
-          {/* ---- 18k foreign ---- */}
+          {/* ---- 18k foreign (live global sources) ---- */}
           {page === "b18for" && prices ? (
-            <Card>
+            <Card className="stat-card">
               <CardHeader>
-                <CardTitle>حباب طلای ۱۸ vs جهانی</CardTitle>
+                <CardTitle>حباب طلای ۱۸ عیار خارجی</CardTitle>
+                <CardDescription>
+                  انس × دلار ÷ {settings.troyOunce} × {settings.purity} × ۱۰۰۰
+                </CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="data-table">
                   <thead>
-                    <tr className="border-b text-muted-foreground">
-                      <th className="py-2 text-right">صرافی</th>
-                      <th className="py-2 text-left">فروش ۱۸</th>
-                      <th className="py-2 text-left">melt ۱۸</th>
-                      <th className="py-2 text-left">حباب ٪</th>
+                    <tr>
+                      <th className="text-right">منبع خارجی</th>
+                      <th className="text-left">قیمت اونس ($)</th>
+                      <th className="text-left">معادل ۱۸ (کیلو)</th>
+                      <th className="text-left">میانگین ۱۸ داخلی</th>
+                      <th className="text-left">حباب ٪</th>
+                      <th className="text-left">وضعیت</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {EXCHANGES.map((ex) => {
-                      const sell = pickSell(rates[ex.id]?.gold18);
-                      const dollar = pickSell(rates[ex.id]?.usd) ?? marketUsd;
-                      const fair = gold18FromKg(
-                        dollar,
-                        ounceUsd,
+                    {FOREIGN_GOLD.map((src) => {
+                      const liveVal =
+                        "coinId" in src && src.coinId
+                          ? prices.foreignGold?.[src.coinId] ?? null
+                          : ounceUsd;
+                      const usdOunce =
+                        typeof liveVal === "number" && liveVal > 0 ? liveVal : null;
+                      const eq18 = gold18FromKg(
+                        marketUsd,
+                        usdOunce,
                         settings.troyOunce,
                         settings.purity
                       );
-                      const b = bubble(sell, fair);
+                      const b = bubble(eq18, domAvg18);
+                      const isReal = usdOunce != null;
                       return (
-                        <tr key={ex.id} className="border-b border-border/50">
-                          <td className="py-2 text-right font-semibold">{ex.fa}</td>
-                          <td className="font-mono-nums py-2 text-left">{formatToman(sell)}</td>
-                          <td className="font-mono-nums py-2 text-left">
-                            {formatToman(fair != null ? Math.round(fair) : null)}
+                        <tr key={src.name}>
+                          <td className="text-right font-semibold">{src.name}</td>
+                          <td className="font-mono-nums text-left">
+                            {usdOunce != null ? formatUsd(usdOunce) : "—"}
                           </td>
-                          <td className={cn("font-mono-nums py-2 text-left", pctColor(b.pct))}>
-                            {b.pct != null ? `${b.pct.toFixed(2)}%` : "—"}
+                          <td className="font-mono-nums text-left">
+                            {formatToman(eq18 != null ? Math.round(eq18) : null)}
+                          </td>
+                          <td className="font-mono-nums text-left">{formatToman(domAvg18)}</td>
+                          <td className={cn("font-mono-nums text-left", pctColor(b.pct))}>
+                            {b.pct != null ? `${b.pct >= 0 ? "+" : ""}${b.pct.toFixed(2)}%` : "—"}
+                          </td>
+                          <td className="text-left">
+                            {isReal ? (
+                              <Badge variant="live">زنده</Badge>
+                            ) : (
+                              <Badge variant="danger">بدون داده</Badge>
+                            )}
                           </td>
                         </tr>
                       );

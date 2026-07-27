@@ -1,8 +1,8 @@
 import type { ExchangeRow, Pair, PriceModel } from "@/lib/api";
 
 export const EXCHANGES = [
-  { id: "navasan", fa: "نوسان" },
   { id: "bonbast", fa: "بن‌بست" },
+  { id: "navasan", fa: "نوسان" },
   { id: "nobitex", fa: "نوبیتکس" },
   { id: "wallex", fa: "والکس" },
   { id: "bitpin", fa: "بیت‌پین" },
@@ -12,6 +12,13 @@ export const EXCHANGES = [
   { id: "exir", fa: "اکسیر" },
   { id: "tetherland", fa: "تتر لند" },
 ] as const;
+
+/** Foreign gold rows — all live from backend */
+export const FOREIGN_GOLD = [
+  { name: "پکس گلد (PAXG)", coinId: "pax-gold" as const },
+  { name: "تتر گلد (XAUT)", coinId: "tether-gold" as const },
+  { name: "اسپات جهانی (gold-api)", useSpot: true as const },
+];
 
 export type ExId = (typeof EXCHANGES)[number]["id"];
 
@@ -53,21 +60,30 @@ export function mapLiveModelToRates(model: PriceModel): {
   const market = model.market || {};
   const estimated = model.estimated || {};
 
+  const mktAed = market.aed || null;
+  const mktG18 = market.gold18PerKg || null;
+  const mktG24 = market.shemsh24PerKg || null;
+  const mktUsd = market.usd || null;
+
   for (const ex of EXCHANGES) {
     const e: ExchangeRow = byEx[ex.id] || {};
+    const usdt = e.usdt || null;
+    const usd = e.usd || usdt || mktUsd;
     const entry: RateEntry = {
-      usd: e.usd || null,
-      usdt: e.usdt || null,
-      aed: e.aed || null,
-      gold18: e.gold18PerKg || null,
-      shemsh24: e.shemsh24PerKg || null,
+      usd: usd || null,
+      usdt,
+      aed: e.aed || mktAed || null,
+      gold18: e.gold18PerKg || mktG18 || null,
+      shemsh24: e.shemsh24PerKg || mktG24 || null,
     };
-    const liveKeys = Object.keys(entry).filter((k) => (entry as Record<string, unknown>)[k]);
+    const liveKeys = (["usdt", "usd", "aed", "gold18", "shemsh24"] as const).filter(
+      (k) => entry[k]
+    );
     rates[ex.id] = entry;
     tags[ex.id] = {
       state: liveKeys.length ? "live" : "empty",
-      liveKeys,
-      estimated: false,
+      liveKeys: [...liveKeys],
+      estimated: !e.usd && !!usdt,
     };
   }
 
