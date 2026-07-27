@@ -107,17 +107,17 @@ type Alert = {
 function BuySell({ buy, sell }: { buy?: number | null; sell?: number | null }) {
   if (buy == null && sell == null) return <span className="text-muted-foreground">—</span>;
   return (
-    <div className="font-mono-nums flex flex-col items-end gap-0.5 text-sm">
-      <span className="text-emerald-400">{formatToman(buy ?? null)}</span>
-      <span className="text-red-400">{formatToman(sell ?? null)}</span>
+    <div className="font-mono-nums flex flex-col items-end gap-0.5 text-body">
+      <span className="text-buy">{formatToman(buy ?? null)}</span>
+      <span className="text-sell">{formatToman(sell ?? null)}</span>
     </div>
   );
 }
 
 function pctColor(pct: number | null) {
   if (pct == null) return "text-muted-foreground";
-  if (pct > 0.15) return "text-red-400";
-  if (pct < -0.15) return "text-emerald-400";
+  if (pct > 0.15) return "text-sell";
+  if (pct < -0.15) return "text-buy";
   return "text-muted-foreground";
 }
 
@@ -225,24 +225,19 @@ export default function App() {
 
   return (
     <div dir="rtl" lang="fa" className="app-shell">
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-      />
-
       <aside className="app-sidebar">
-        <div className="flex items-center gap-3 border-b border-border/80 px-4 py-5">
+        <div className="flex items-center gap-3 border-b border-border px-4 py-4">
           <div className="logo-mark">﷼</div>
-          <div>
-            <div className="text-[15px] font-extrabold tracking-tight">تابلوی بازار</div>
-            <div className="font-mono-nums text-[10px] text-muted-foreground">
+          <div className="min-w-0">
+            <div className="text-body-lg font-bold tracking-tight">تابلوی بازار</div>
+            <div className="font-mono-nums text-caption text-muted-foreground">
               v{prices?.version || health?.version || "—"}
               {(prices?.gitSha || health?.gitSha) &&
                 ` · ${String(prices?.gitSha || health?.gitSha).slice(0, 7)}`}
             </div>
           </div>
         </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+        <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
           {NAV.map((item) => {
             const Icon = item.icon;
             const active = page === item.id;
@@ -255,10 +250,10 @@ export default function App() {
                 onClick={() => navigate(item.id)}
                 className={cn("nav-item", active ? "nav-item-active" : "nav-item-idle")}
               >
-                <Icon className="size-4 shrink-0 opacity-90" />
+                <Icon className="size-4 shrink-0 opacity-80" strokeWidth={1.75} />
                 <span className="flex-1">{item.label}</span>
                 {badge > 0 ? (
-                  <span className="rounded-full bg-red-500/25 px-1.5 text-[10px] font-bold text-red-400">
+                  <span className="rounded-full bg-[color-mix(in_srgb,var(--sell)_20%,transparent)] px-1.5 text-caption font-bold text-sell">
                     {badge}
                   </span>
                 ) : null}
@@ -266,33 +261,33 @@ export default function App() {
             );
           })}
         </nav>
-        <div className="border-t border-border/60 p-3 text-[10px] leading-relaxed text-muted-foreground">
-          shadcn/ui · داده زنده از FastAPI
+        <div className="border-t border-border p-3 text-caption leading-relaxed text-muted-foreground">
+          shadcn/ui · داده زنده
         </div>
       </aside>
 
       <div className="app-main">
         <header className="app-header">
-          <div>
-            <h1 className="bg-gradient-to-l from-primary/90 to-foreground bg-clip-text text-xl font-extrabold tracking-tight text-transparent sm:text-2xl">
-              {meta.title}
-            </h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">{meta.subtitle}</p>
+          <div className="min-w-0">
+            <h1 className="text-page font-bold text-foreground sm:text-display">{meta.title}</h1>
+            <p className="mt-1 text-label text-muted-foreground">{meta.subtitle}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {prices && !prices.stale ? <Badge variant="live">● زنده</Badge> : null}
-            {prices?.stale ? <Badge variant="est">● آخرین معتبر</Badge> : null}
-            {error && !prices ? <Badge variant="danger">● خطا</Badge> : null}
-            {!prices && !error && loading ? <Badge variant="muted">در حال بارگذاری</Badge> : null}
-            <span className="text-xs text-muted-foreground">بروزرسانی: {timeAgo(updatedAt)}</span>
+            {prices && !prices.stale ? <Badge variant="live">زنده</Badge> : null}
+            {prices?.stale ? <Badge variant="est">آخرین معتبر</Badge> : null}
+            {error && !prices ? <Badge variant="danger">خطا</Badge> : null}
+            {!prices && !error && loading ? <Badge variant="muted">بارگذاری</Badge> : null}
+            <span className="text-label text-muted-foreground">
+              بروزرسانی: {timeAgo(updatedAt)}
+            </span>
             <Button size="sm" onClick={() => void onRefresh()} disabled={busy}>
-              <RefreshCw className={cn("size-4", busy && "animate-spin")} />
+              <RefreshCw className={cn("size-3.5", busy && "animate-spin")} />
               بروزرسانی
             </Button>
           </div>
         </header>
 
-        <main className="space-y-5 p-4 sm:p-6">
+        <main className="app-content">
           {error && !prices ? (
             <Card className="border-destructive/40">
               <CardHeader>
@@ -341,7 +336,7 @@ export default function App() {
                         {badge === "live" ? <Badge variant="live">زنده</Badge> : null}
                         {badge === "est" ? <Badge variant="est">تخمینی</Badge> : null}
                       </div>
-                      <CardTitle className="font-mono-nums text-2xl tracking-tight">
+                      <CardTitle className="font-mono-nums text-display tracking-tight">
                         {value}
                       </CardTitle>
                     </CardHeader>
@@ -395,12 +390,12 @@ export default function App() {
                               <Badge variant="muted">بدون داده</Badge>
                             )}
                           </div>
-                          <table className="w-full text-xs">
+                          <table className="data-table text-label">
                             <thead>
                               <tr className="text-muted-foreground">
                                 <th className="py-1 text-right font-medium" />
-                                <th className="py-1 text-left font-medium text-emerald-400">خرید</th>
-                                <th className="py-1 text-left font-medium text-red-400">فروش</th>
+                                <th className="py-1 text-left font-medium text-buy">خرید</th>
+                                <th className="py-1 text-left font-medium text-sell">فروش</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -417,10 +412,10 @@ export default function App() {
                                   <td className="py-1.5 text-right text-muted-foreground">
                                     {label}
                                   </td>
-                                  <td className="font-mono-nums py-1.5 text-left text-emerald-400">
+                                  <td className="font-mono-nums py-1.5 text-left text-buy">
                                     {formatToman(pair?.buy ?? null)}
                                   </td>
-                                  <td className="font-mono-nums py-1.5 text-left text-red-400">
+                                  <td className="font-mono-nums py-1.5 text-left text-sell">
                                     {formatToman(pair?.sell ?? null)}
                                   </td>
                                 </tr>
@@ -462,7 +457,7 @@ export default function App() {
                     <CardHeader>
                       <CardTitle>{ex.fa}</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-1 text-sm">
+                    <CardContent className="space-y-1 text-body">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">حباب درهم</span>
                         <span className={cn("font-mono-nums", pctColor(bAed.pct))}>
@@ -503,7 +498,7 @@ export default function App() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="data-table">
                   <thead>
                     <tr className="border-b text-muted-foreground">
                       <th className="py-2 text-right">صرافی</th>
@@ -601,7 +596,7 @@ export default function App() {
                 <CardDescription>میانگین فروش: {formatToman(domAvg18)}</CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="data-table">
                   <thead>
                     <tr className="border-b text-muted-foreground">
                       <th className="py-2 text-right">صرافی</th>
@@ -706,7 +701,7 @@ export default function App() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="data-table">
                   <thead>
                     <tr className="border-b text-muted-foreground">
                       <th className="py-2 text-right">صرافی</th>
@@ -748,7 +743,7 @@ export default function App() {
                 <CardDescription>ضمنی = درهم × {settings.aedPeg}</CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="data-table">
                   <thead>
                     <tr className="border-b text-muted-foreground">
                       <th className="py-2 text-right">صرافی</th>
@@ -779,7 +774,7 @@ export default function App() {
                   </tbody>
                 </table>
                 {marketAed == null ? (
-                  <p className="mt-3 text-xs text-amber-400">
+                  <p className="mt-3 text-label text-warn">
                     درهم زنده نیست — برای حباب دلار دقیق، NAVASAN_API_KEY لازم است.
                   </p>
                 ) : null}
@@ -797,10 +792,10 @@ export default function App() {
                     <CardDescription>دلار ÷ {settings.aedPeg}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="font-mono-nums text-sm text-muted-foreground">
+                    <div className="font-mono-nums text-body text-muted-foreground">
                       {formatToman(marketUsd)} ÷ {settings.aedPeg}
                     </div>
-                    <div className="font-mono-nums mt-1 text-2xl font-bold text-primary">
+                    <div className="font-mono-nums mt-1 text-display font-bold text-primary">
                       {formatToman(fairAed)} تومان
                     </div>
                   </CardContent>
@@ -811,10 +806,10 @@ export default function App() {
                     <CardDescription>درهم × {settings.aedPeg}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="font-mono-nums text-sm text-muted-foreground">
+                    <div className="font-mono-nums text-body text-muted-foreground">
                       {formatToman(marketAed)} × {settings.aedPeg}
                     </div>
-                    <div className="font-mono-nums mt-1 text-2xl font-bold text-primary">
+                    <div className="font-mono-nums mt-1 text-display font-bold text-primary">
                       {formatToman(fairUsdFromAed)} تومان
                     </div>
                   </CardContent>
@@ -827,7 +822,7 @@ export default function App() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="font-mono-nums text-2xl font-bold">
+                    <div className="font-mono-nums text-display font-bold">
                       {formatToman(
                         Math.round(
                           gold18FromKg(
@@ -850,7 +845,7 @@ export default function App() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="font-mono-nums text-2xl font-bold">
+                    <div className="font-mono-nums text-display font-bold">
                       {formatToman(
                         Math.round(
                           gold24FromKg(marketUsd, ounceUsd, settings.troyOunce) || 0
@@ -866,7 +861,7 @@ export default function App() {
                 <CardHeader>
                   <CardTitle>مرجع فرمول‌ها</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2 text-sm leading-8 text-muted-foreground">
+                <CardContent className="space-y-2 text-body leading-8 text-muted-foreground">
                   <p>حباب درهم = درهم بازار − (دلار ÷ {settings.aedPeg})</p>
                   <p>حباب دلار = دلار بازار − (درهم × {settings.aedPeg})</p>
                   <p>آربیتراژ طلای داخلی = قیمت صرافی − میانگین همان کالا بین صرافی‌ها</p>
@@ -896,7 +891,7 @@ export default function App() {
                   <CardTitle>ساخت هشدار</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-wrap items-end gap-3">
-                  <label className="text-sm">
+                  <label className="text-body">
                     دارایی
                     <select
                       className="mt-1 block rounded-md border border-border bg-background px-3 py-2"
@@ -910,7 +905,7 @@ export default function App() {
                       <option value="ounce">انس</option>
                     </select>
                   </label>
-                  <label className="text-sm">
+                  <label className="text-body">
                     شرط
                     <select
                       className="mt-1 block rounded-md border border-border bg-background px-3 py-2"
@@ -921,7 +916,7 @@ export default function App() {
                       <option value="below">پایین‌تر از</option>
                     </select>
                   </label>
-                  <label className="text-sm">
+                  <label className="text-body">
                     مقدار
                     <input
                       className="font-mono-nums mt-1 block rounded-md border border-border bg-background px-3 py-2"
@@ -957,7 +952,7 @@ export default function App() {
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {alerts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">هشداری نیست.</p>
+                    <p className="text-body text-muted-foreground">هشداری نیست.</p>
                   ) : (
                     alerts.map((a) => {
                       const on = alertTriggered(a);
@@ -967,10 +962,10 @@ export default function App() {
                           key={a.id}
                           className={cn(
                             "flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2",
-                            on ? "border-red-500/50 bg-red-500/10" : "border-border"
+                            on ? "border-[color-mix(in_srgb,var(--sell)_45%,transparent)] bg-[color-mix(in_srgb,var(--sell)_10%,transparent)]" : "border-border"
                           )}
                         >
-                          <div className="text-sm">
+                          <div className="text-body">
                             <span className="font-semibold">{a.asset}</span>{" "}
                             {a.cond === "above" ? "≥" : "≤"}{" "}
                             <span className="font-mono-nums">{formatToman(a.value)}</span>
@@ -1046,12 +1041,12 @@ export default function App() {
                       <div>
                         <div className="font-semibold">{r.label}</div>
                         {!r.ok && r.error ? (
-                          <div className="max-w-xl truncate text-xs text-red-400">{r.error}</div>
+                          <div className="max-w-xl truncate text-label text-sell">{r.error}</div>
                         ) : null}
                       </div>
                       <div className="flex items-center gap-2">
                         {r.ms != null ? (
-                          <span className="font-mono-nums text-xs text-muted-foreground">
+                          <span className="font-mono-nums text-label text-muted-foreground">
                             {r.ms}ms
                           </span>
                         ) : null}
@@ -1080,7 +1075,7 @@ export default function App() {
                     ["refreshSec", "بازه UI refresh (ثانیه)", settings.refreshSec],
                   ] as const
                 ).map(([key, label, val]) => (
-                  <label key={key} className="block text-sm">
+                  <label key={key} className="block text-body">
                     <span className="text-muted-foreground">{label}</span>
                     <input
                       type="number"
@@ -1097,7 +1092,7 @@ export default function App() {
                     />
                   </label>
                 ))}
-                <p className="text-xs text-muted-foreground">
+                <p className="text-label text-muted-foreground">
                   کلید Navasan سرور-ساید است (فایل .env روی سرور: NAVASAN_API_KEY). برای دلار/درهم/طلای
                   free-market واقعی آن را ست کنید.
                 </p>
@@ -1106,7 +1101,7 @@ export default function App() {
           ) : null}
 
           <Separator />
-          <footer className="flex flex-wrap items-center justify-between gap-2 pb-6 text-xs text-muted-foreground">
+          <footer className="flex flex-wrap items-center justify-between gap-2 pb-6 text-label text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <Activity className="size-3.5" />
               shadcn/ui · همه صفحات قبلی · data از FastAPI

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 # Semver — bump on release / meaningful deploy.
-APP_VERSION = os.environ.get("APP_VERSION", "1.3.0")
+APP_VERSION = os.environ.get("APP_VERSION", "1.3.1")
 
 # Prefer Docker build-arg (APP_GIT_SHA); fall back to git or "dev".
 APP_GIT_SHA = (os.environ.get("APP_GIT_SHA") or os.environ.get("GIT_SHA") or "dev").strip()
