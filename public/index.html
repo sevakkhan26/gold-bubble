@@ -668,6 +668,7 @@ function MarketDashboard() {
   const [clientNavasan, setClientNavasan] = useState(null); // نوسان entry fetched from Settings key
   const clientNavasanRef = useRef(null);
   const [dataMode, setDataMode] = useState("mock"); // 'live' | 'stale' | 'mock'
+  const [appVersion, setAppVersion] = useState(null); // {version, gitSha} from backend
   const [setPurity, setSetPurity] = useState(0.75);
   const [setOunceMock, setSetOunceMock] = useState(4072);
   const [setTroyOunce, setSetTroyOunce] = useState(31.103);
@@ -860,6 +861,12 @@ function MarketDashboard() {
         if (hasData) {
           liveModelRef.current = model; // remember last valid
           setLiveModel(model);
+          if (model.version) {
+            setAppVersion({
+              version: model.version,
+              gitSha: model.gitSha || ""
+            });
+          }
           const {
             rates,
             tags
@@ -1502,9 +1509,23 @@ function MarketDashboard() {
     style: styles.sidebarBrand
   }, /*#__PURE__*/React.createElement("span", {
     style: styles.sidebarLogo
-  }, "﷼"), /*#__PURE__*/React.createElement("span", {
+  }, "﷼"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 2
+    }
+  }, /*#__PURE__*/React.createElement("span", {
     style: styles.sidebarBrandText
-  }, "تابلوی بازار")), /*#__PURE__*/React.createElement("nav", {
+  }, "تابلوی بازار"), appVersion && /*#__PURE__*/React.createElement("span", {
+    title: appVersion.gitSha ? `git ${appVersion.gitSha}` : "",
+    style: {
+      fontSize: 10,
+      color: "#8B96A8",
+      fontFamily: "ui-monospace, monospace",
+      letterSpacing: 0.3
+    }
+  }, "v", appVersion.version, appVersion.gitSha ? ` · ${String(appVersion.gitSha).slice(0, 7)}` : ""))), /*#__PURE__*/React.createElement("nav", {
     style: styles.sidebarNav,
     className: "app-sidebar-nav"
   }, NAV_ITEMS.map(item => {

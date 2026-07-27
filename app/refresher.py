@@ -123,12 +123,15 @@ class Refresher:
         return self.latest  # type: ignore[return-value]
 
     def _loop(self) -> None:
+        # lifespan already ran refresh_once(); wait first to avoid double-hit on start.
         while not self._stop.is_set():
+            self._stop.wait(config.REFRESH_SEC)
+            if self._stop.is_set():
+                break
             try:
                 self.refresh_once()
             except Exception as e:  # noqa: BLE001
                 print(f"[refresh] unexpected: {e}")
-            self._stop.wait(config.REFRESH_SEC)
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():

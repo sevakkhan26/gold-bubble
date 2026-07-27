@@ -22,15 +22,22 @@ def _now_iso() -> str:
 
 
 def fetch_json(url: str, timeout: float = 8.0, retries: int = 1) -> tuple[Any, int]:
-    """GET JSON with timeout + retry. Returns (json, elapsed_ms)."""
+    """GET JSON with timeout + retry. Returns (json, elapsed_ms).
+
+    Uses system proxy env (HTTP_PROXY / HTTPS_PROXY / ALL_PROXY / NO_PROXY)
+    via httpx defaults so LAN/mtproxier proxies work without code changes.
+    """
     last = None
+    headers = {
+        "User-Agent": "TraderBot/GoldMarketLive-1.0",
+        "Accept": "application/json",
+    }
     for attempt in range(retries + 1):
         started = time.time()
         try:
-            r = httpx.get(url, timeout=timeout, headers={
-                "User-Agent": "TraderBot/GoldMarketLive-1.0",
-                "Accept": "application/json",
-            })
+            # trust_env=True (default): honour HTTP(S)_PROXY from the container.
+            with httpx.Client(timeout=timeout, trust_env=True, headers=headers) as client:
+                r = client.get(url)
             r.raise_for_status()
             return r.json(), int((time.time() - started) * 1000)
         except Exception as e:  # noqa: BLE001
