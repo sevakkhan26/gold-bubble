@@ -40,6 +40,20 @@ HTTP_TIMEOUT = _int("HTTP_TIMEOUT", 8)
 NAVASAN_API_KEY = os.environ.get("NAVASAN_API_KEY", "")
 BRSAPI_KEY = os.environ.get("BRSAPI_KEY", "")
 
+# Optional outbound proxy (httpx trust_env). Same idea as OTC / Iran Market Terminal.
+# Prefer OUTBOUND_HTTPS_PROXY; fall back to standard HTTPS_PROXY / HTTP_PROXY.
+_OUTBOUND = (
+    os.environ.get("OUTBOUND_HTTPS_PROXY", "").strip()
+    or os.environ.get("HTTPS_PROXY", "").strip()
+    or os.environ.get("HTTP_PROXY", "").strip()
+)
+if _OUTBOUND:
+    # Ensure child clients see a consistent pair even if only one var was set.
+    os.environ.setdefault("HTTPS_PROXY", _OUTBOUND)
+    os.environ.setdefault("HTTP_PROXY", _OUTBOUND)
+HTTPS_PROXY = os.environ.get("HTTPS_PROXY", "").strip()
+HTTP_PROXY = os.environ.get("HTTP_PROXY", "").strip()
+
 # Optional base-URL overrides (proxy / mirror / self-test).
 OVERRIDES = {
     k: os.environ[v]

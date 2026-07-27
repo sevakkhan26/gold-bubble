@@ -100,6 +100,12 @@ def test_history_store_and_api(monkeypatch):
         body = r.json()
         assert body["exchanges"]["navasan"]["usd"]["sell"] == 92300
         assert "ageMs" in body
+        assert "version" in body
+
+        hv = client.get("/api/health").json()
+        assert hv.get("ok") is True
+        assert "version" in hv
+        assert client.get("/api/version").status_code == 200
 
         # history for USDT on nobitex
         h = client.get("/api/history", params={"asset": "usdt", "exchange": "nobitex", "limit": 10})

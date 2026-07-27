@@ -1,31 +1,81 @@
+# Gold Market Live — app + PostgreSQL.
+#
+# First time:
+#   cp .env.example .env   # set NAVASAN_API_KEY, optional proxy
+#   docker compose up -d --build
+#
+# Open: http://localhost:8787
+#
+# Deploy marker for LAN server deploy.sh (project-local compose stack):
+#   see .standalone-deploy
+
 services:
   db:
-    image: postgres:16
+    image: postgres:16-alpine
+    container_name: gold-bubble-db
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: gold
-      POSTGRES_PASSWORD: goldpass
-      POSTGRES_DB: goldmarket
+      POSTGRES_USER: ${POSTGRES_USER:-gold}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-goldpass}
+      POSTGRES_DB: ${POSTGRES_DB:-goldmarket}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - gold_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gold -d goldmarket"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gold} -d ${POSTGRES_DB:-goldmarket}"]
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    # Host only for local admin (LAN server uses 5436 to avoid OTC/terminal clash).
+    ports:
+      - "${POSTGRES_PORT:-5436}:5432"
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-1.0.0}
+        GIT_SHA: ${GIT_SHA:-unknown}
+    image: gold-bubble:latest
+    container_name: gold-bubble
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+      - 9.9.9.9
+      - 178.22.122.100
     environment:
-      DATABASE_URL: postgresql+psycopg2://gold:goldpass@db:5432/goldmarket
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-gold}:${POSTGRES_PASSWORD:-goldpass}@db:5432/${POSTGRES_DB:-goldmarket}
       NAVASAN_API_KEY: ${NAVASAN_API_KEY:-}
       BRSAPI_KEY: ${BRSAPI_KEY:-}
       REFRESH_SEC: ${REFRESH_SEC:-60}
-      PORT: 8787
+      HTTP_TIMEOUT: ${HTTP_TIMEOUT:-8}
+      PORT: "8787"
+      APP_VERSION: ${APP_VERSION:-1.0.0}
+      APP_GIT_SHA: ${GIT_SHA:-unknown}
+      # Outbound proxy (e.g. mtproxier.ir:2053) — optional
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      OUTBOUND_HTTPS_PROXY: ${OUTBOUND_HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-db,localhost,127.0.0.1}
+      ALL_PROXY: ${ALL_PROXY:-}
     ports:
-      - "8787:8787"
+      - "${PORT:-8787}:8787"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-fsS",
+          "http://127.0.0.1:8787/api/health",
+        ]
+      interval: 20s
+      timeout: 5s
+      start_period: 45s
+      retries: 6
 
 volumes:
-  pgdata:
+  gold_pgdata:

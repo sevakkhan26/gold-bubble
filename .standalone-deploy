@@ -1,0 +1,2 @@
+# Marker: LAN server deploy.sh uses this project's docker-compose.yml
+# (app + db) instead of the top-level docker-projects/compose.yaml.
