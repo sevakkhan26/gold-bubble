@@ -1,13 +1,12 @@
-"""FastAPI app: /api/prices, /api/health, /api/debug, /api/history + static frontend."""
+"""FastAPI app: /api/* + SPA frontend with path-based routes."""
 from __future__ import annotations
 
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Query
-from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import select
 
 from . import config
@@ -16,13 +15,30 @@ from .refresher import refresher
 from .version import APP_VERSION, public_version
 
 PUBLIC_DIR = Path(__file__).resolve().parent.parent / "public"
+INDEX_HTML = PUBLIC_DIR / "index.html"
+
+# Client-side menu routes (must match public/index.html PAGE_ROUTES)
+SPA_ROUTES = {
+    "",
+    "market",
+    "bubbles",
+    "formulas",
+    "alerts",
+    "b24dom",
+    "b24for",
+    "b18dom",
+    "b18for",
+    "baed",
+    "busd",
+    "settings",
+}
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     try:
-        refresher.refresh_once()  # warm cache + first history rows
+        refresher.refresh_once()
     except Exception as e:  # noqa: BLE001
         print(f"[startup] initial refresh failed (will keep polling): {e}")
     refresher.start()
@@ -138,7 +154,44 @@ def history(
     }
 
 
-# Serve the frontend (same origin -> /api works, no CORS needed).
-# Registered last so /api/* always wins.
-if PUBLIC_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(PUBLIC_DIR), html=True), name="static")
+def _spa_index() -> FileResponse:
+    if not INDEX_HTML.is_file():
+        raise HTTPException(status_code=404, detail="frontend index.html missing")
+    return FileResponse(INDEX_HTML, media_type="text/html; charset=utf-8")
+
+
+@app.get("/")
+def root():
+    """Home → SPA (client redirects/normalizes to /market)."""
+    return _spa_index()
+
+
+@app.get("/{full_path:path}")
+def spa_or_static(full_path: str, request: Request):
+    """Serve static files, or fall back to index.html for SPA menu routes.
+
+    Keeps /api/* exclusive to the API handlers above (they are registered first).
+    """
+    # Never handle API here (should already be matched, but belt-and-suspenders).
+    if full_path == "api" or full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    # Safe path resolve under public/
+    candidate = (PUBLIC_DIR / full_path).resolve()
+    try:
+        candidate.relative_to(PUBLIC_DIR.resolve())
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Not Found") from exc
+
+    if candidate.is_file():
+        return FileResponse(candidate)
+
+    # SPA route: /market, /settings, ...
+    first = full_path.split("/", 1)[0]
+    if first in SPA_ROUTES or full_path in SPA_ROUTES:
+        return _spa_index()
+
+    # Unknown path → still SPA shell (deep-link friendly) if we have index
+    if INDEX_HTML.is_file():
+        return _spa_index()
+    raise HTTPException(status_code=404, detail="Not Found")

@@ -666,6 +666,46 @@ const PAGE_META = {
     subtitle: "پیکربندی پارامترها و منابع داده"
   }
 };
+
+// ---- URL routes (path-based) so each menu page has its own URL ----
+// e.g. /market  /bubbles  /settings  /b24dom
+const PAGE_ROUTES = {
+  market: "/market",
+  bubbles: "/bubbles",
+  formulas: "/formulas",
+  alerts: "/alerts",
+  b24dom: "/b24dom",
+  b24for: "/b24for",
+  b18dom: "/b18dom",
+  b18for: "/b18for",
+  baed: "/baed",
+  busd: "/busd",
+  settings: "/settings"
+};
+const PATH_TO_PAGE = {
+  "/": "market",
+  "": "market"
+};
+Object.keys(PAGE_ROUTES).forEach(function (id) {
+  PATH_TO_PAGE[PAGE_ROUTES[id]] = id;
+});
+function normalizePath(pathname) {
+  if (!pathname) return "/";
+  var p = pathname.split("?")[0].split("#")[0];
+  if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
+  return p || "/";
+}
+function pageFromLocation() {
+  var p = normalizePath(window.location.pathname);
+  if (PATH_TO_PAGE[p]) return PATH_TO_PAGE[p];
+  // allow /index.html → market
+  if (p === "/index.html") return "market";
+  return "market";
+}
+function pathForPage(pageId) {
+  return PAGE_ROUTES[pageId] || "/market";
+}
+
 function MarketDashboard() {
   const [coins, setCoins] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -695,8 +735,30 @@ function MarketDashboard() {
   const [exchangeSourceTag, setExchangeSourceTag] = useState({});
   const [exchangeUpdated, setExchangeUpdated] = useState(null);
 
-  // ---- Multi-page navigation ----
-  const [page, setPage] = useState("market");
+  // ---- Multi-page navigation (synced with URL path) ----
+  const [page, setPage] = useState(() => pageFromLocation());
+  const navigate = useCallback(pageId => {
+    const next = PAGE_ROUTES[pageId] ? pageId : "market";
+    setPage(next);
+    const path = pathForPage(next);
+    if (normalizePath(window.location.pathname) !== path) {
+      window.history.pushState({
+        page: next
+      }, "", path);
+    }
+  }, []);
+  useEffect(() => {
+    // Keep URL in sync on first paint if user landed on /
+    const path = pathForPage(page);
+    if (normalizePath(window.location.pathname) === "/" && path !== "/") {
+      window.history.replaceState({
+        page
+      }, "", path);
+    }
+    const onPop = () => setPage(pageFromLocation());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   const [manualDollar, setManualDollar] = useState("");
   const [manualAed, setManualAed] = useState("");
   const [manualGold18, setManualGold18] = useState("");
@@ -1595,7 +1657,7 @@ function MarketDashboard() {
     const badge = item.id === "alerts" ? alerts.filter(a => alertTriggered(a)).length : 0;
     return /*#__PURE__*/React.createElement("button", {
       key: item.id,
-      onClick: () => setPage(item.id),
+      onClick: () => navigate(item.id),
       className: "nav-btn focus-ring",
       style: {
         ...styles.sidebarBtn,
@@ -1649,7 +1711,7 @@ function MarketDashboard() {
     size: 16,
     className: loading ? "spin" : ""
   }), "بروزرسانی"), /*#__PURE__*/React.createElement("button", {
-    onClick: () => setPage("settings"),
+    onClick: () => navigate("settings"),
     className: "focus-ring nav-btn",
     style: {
       ...styles.gearBtn,
