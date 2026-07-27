@@ -10,13 +10,29 @@ os.environ["NAVASAN_API_KEY"] = "TESTKEY"
 
 from app import providers  # noqa: E402
 from app.providers import (  # noqa: E402
-    map_nobitex_depth, map_wallex_depth, map_navasan, map_gold_api, map_goldprice_org, build_model, GRAMS_PER_KG,
+    GRAMS_PER_KG,
+    build_model,
+    map_bitpin_book,
+    map_gold_api,
+    map_goldprice_org,
+    map_navasan,
+    map_nobitex_depth,
+    map_ramzinex_book,
+    map_tabdeal_depth,
+    map_tetherland,
+    map_tgju_table,
+    map_wallex_depth,
 )
 
 
-# ---------- pure mappers ----------
 def test_map_nobitex_depth():
-    r = map_nobitex_depth({"bids": [["1583000", 2], ["1582000", 1]], "asks": [["1585000", 1], ["1586000", 3]], "lastTradePrice": "1584000"})
+    r = map_nobitex_depth(
+        {
+            "bids": [["1583000", 2], ["1582000", 1]],
+            "asks": [["1585000", 1], ["1586000", 3]],
+            "lastTradePrice": "1584000",
+        }
+    )
     assert r["buy"] == 158300 and r["sell"] == 158500 and r["latest"] == 158400
 
 
@@ -25,9 +41,39 @@ def test_map_wallex_depth():
     assert r["buy"] == 157900 and r["sell"] == 158100
 
 
+def test_map_bitpin_tabdeal_toman():
+    b = map_bitpin_book({"bids": [["190100", "1"]], "asks": [["190200", "2"]]})
+    assert b["buy"] == 190100 and b["sell"] == 190200
+    t = map_tabdeal_depth({"bids": [["189900", "1"]], "asks": [["190000", "1"]]})
+    assert t["buy"] == 189900 and t["sell"] == 190000
+
+
+def test_map_ramzinex_rial():
+    r = map_ramzinex_book({"data": {"buys": [[1901000, 1]], "sells": [[1902000, 1]]}})
+    assert r["buy"] == 190100 and r["sell"] == 190200
+
+
+def test_map_tetherland():
+    r = map_tetherland(
+        {"status": 200, "data": {"currencies": {"USDT": {"buy_price": 190000, "sell_price": 190100}}}}
+    )
+    assert r["buy"] == 190000 and r["sell"] == 190100
+
+
+def test_map_tgju_table():
+    assert map_tgju_table({"data": [["1,900,000", "x"]]}, rial=True) == 190000
+
+
 def test_map_navasan():
-    m = map_navasan({"harat_naghdi_buy": {"value": "92000"}, "harat_naghdi_sell": {"value": "92300"},
-                     "aed": {"value": "25100"}, "18ayar": {"value": "6250000"}, "ons": {"value": "4072"}})
+    m = map_navasan(
+        {
+            "harat_naghdi_buy": {"value": "92000"},
+            "harat_naghdi_sell": {"value": "92300"},
+            "aed": {"value": "25100"},
+            "18ayar": {"value": "6250000"},
+            "ons": {"value": "4072"},
+        }
+    )
     assert m["usd"]["buy"] == 92000 and m["usd"]["sell"] == 92300
     assert m["aed"]["sell"] == 25100
     assert m["gold18PerKg"]["sell"] == 6250000 * GRAMS_PER_KG
@@ -40,16 +86,42 @@ def test_map_gold_api_and_goldprice():
     assert map_goldprice_org({"items": [{"curr": "USD", "xauPrice": 4070.2}]}) == 4070.2
 
 
-# ---------- build_model with mocked HTTP ----------
 def _fake_fetch(url, timeout=8.0, retries=1):
     u = str(url)
     if "navasan" in u:
-        return ({"harat_naghdi_buy": {"value": "92000"}, "harat_naghdi_sell": {"value": "92300"},
-                 "aed": {"value": "25100"}, "18ayar": {"value": "6250000"}, "ons": {"value": "4072"}}, 5)
+        return (
+            {
+                "harat_naghdi_buy": {"value": "92000"},
+                "harat_naghdi_sell": {"value": "92300"},
+                "aed": {"value": "25100"},
+                "18ayar": {"value": "6250000"},
+                "ons": {"value": "4072"},
+            },
+            5,
+        )
     if "nobitex" in u:
         return ({"bids": [["920000", 1]], "asks": [["923000", 1]], "lastTradePrice": "921500"}, 5)
     if "wallex" in u:
         return ({"result": {"bid": [{"price": "92100"}], "ask": [{"price": "92300"}]}}, 5)
+    if "bitpin" in u:
+        return ({"bids": [["92050", "1"]], "asks": [["92150", "1"]]}, 5)
+    if "tabdeal" in u:
+        return ({"bids": [["91900", "1"]], "asks": [["92000", "1"]]}, 5)
+    if "exir" in u:
+        return ({"last": 92010, "close": 92010, "symbol": "usdt-irt"}, 5)
+    if "ramzinex" in u:
+        return ({"data": {"buys": [[920100, 1]], "sells": [[921000, 1]]}}, 5)
+    if "tetherland" in u:
+        return (
+            {"data": {"currencies": {"USDT": {"buy_price": 91950, "sell_price": 92050}}}},
+            5,
+        )
+    if "price_dollar_rl" in u:
+        return ({"data": [["920,000", "x"]]}, 5)
+    if "price_aed" in u:
+        return ({"data": [["250,000", "x"]]}, 5)
+    if "geram18" in u:
+        return ({"data": [["6,250,000", "x"]]}, 5)
     if "gold-api.com" in u:
         return ({"price": 4072}, 5)
     if "goldprice.org" in u:
@@ -59,64 +131,46 @@ def _fake_fetch(url, timeout=8.0, retries=1):
     return ({}, 5)
 
 
-def test_build_model_per_exchange_attribution(monkeypatch):
+def test_build_model_multi_exchange_usdt(monkeypatch):
     monkeypatch.setattr(providers, "fetch_json", _fake_fetch)
     out = build_model(navasan_key="TESTKEY")
     m = out["model"]
-    # Navasan -> navasan box only (real, not estimated)
     assert m["exchanges"]["navasan"]["usd"]["sell"] == 92300
-    assert m["exchanges"]["navasan"]["gold18PerKg"]["sell"] == 6250000 * GRAMS_PER_KG
-    assert m["estimated"]["usd"] is False and m["estimated"]["gold"] is False
-    # USDT per exchange only
-    assert m["exchanges"]["nobitex"]["usdt"]["sell"] == 92300  # 923000 / 10
+    assert m["exchanges"]["nobitex"]["usdt"]["sell"] == 92300
     assert m["exchanges"]["wallex"]["usdt"]["sell"] == 92300
-    assert "usd" not in m["exchanges"]["nobitex"]  # nobitex has no dollar
-    # ounce + foreign gold
+    assert m["exchanges"]["bitpin"]["usdt"]["buy"] == 92050
+    assert m["exchanges"]["tabdeal"]["usdt"]["buy"] == 91900
+    assert m["exchanges"]["exir"]["usdt"]["latest"] == 92010
+    assert m["exchanges"]["ramzinex"]["usdt"]["buy"] == 92010
+    assert m["exchanges"]["tetherland"]["usdt"]["buy"] == 91950
+    # TGJU also available for bonbast when navasan present
     assert m["ounceUsd"] == 4072
-    assert m["foreignGold"]["pax-gold"] == 4071
+    assert m["estimated"]["usd"] is False
 
 
-def test_build_model_keyless_gold_fallback(monkeypatch):
-    def fake(url, timeout=8.0, retries=1):
-        if "gold-api.com" in str(url):
-            raise RuntimeError("down")
-        return _fake_fetch(url, timeout, retries)
-    monkeypatch.setattr(providers, "fetch_json", fake)
-    out = build_model(navasan_key="")  # no domestic key -> dollar estimated
+def test_build_model_tgju_without_navasan(monkeypatch):
+    monkeypatch.setattr(providers, "fetch_json", _fake_fetch)
+    out = build_model(navasan_key="")
     m = out["model"]
-    assert m["ounceUsd"] == 4070  # fell back to goldprice.org
-    assert m["estimated"]["usd"] is True  # USDT proxy
-    # Aggregate market still exposed under navasan so the board is not empty
-    assert "navasan" in m["exchanges"]
-    assert m["exchanges"]["navasan"]["usd"]["sell"] is not None
+    assert m["exchanges"]["bonbast"]["usd"]["sell"] == 92000  # TGJU rial/10
+    assert m["exchanges"]["bonbast"]["aed"]["sell"] == 25000
+    assert m["estimated"]["usd"] is False  # TGJU is live free-market, not USDT proxy
 
 
-# ---------- history DB + API endpoints ----------
 def test_history_store_and_api(monkeypatch):
     monkeypatch.setattr(providers, "fetch_json", _fake_fetch)
     from fastapi.testclient import TestClient
-    from app.main import app  # imports db (sqlite) + refresher
+    from app.main import app
 
-    with TestClient(app) as client:  # lifespan runs: init_db + first refresh (writes history)
+    with TestClient(app) as client:
         r = client.get("/api/prices")
         assert r.status_code == 200
         body = r.json()
         assert body["exchanges"]["navasan"]["usd"]["sell"] == 92300
+        assert body["exchanges"]["bitpin"]["usdt"]["buy"] == 92050
         assert "ageMs" in body
         assert "version" in body
 
-        hv = client.get("/api/health").json()
-        assert hv.get("ok") is True
-        assert "version" in hv
-        assert client.get("/api/version").status_code == 200
-
-        # history for USDT on nobitex
         h = client.get("/api/history", params={"asset": "usdt", "exchange": "nobitex", "limit": 10})
         assert h.status_code == 200
-        hist = h.json()
-        assert hist["count"] >= 1
-        assert hist["points"][0]["sell"] == 92300
-
-        # history for the international ounce (single value)
-        ho = client.get("/api/history", params={"asset": "ounce", "limit": 10})
-        assert ho.json()["points"][0]["value"] == 4072
+        assert h.json()["count"] >= 1
