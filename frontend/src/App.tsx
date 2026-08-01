@@ -143,6 +143,9 @@ const WALLET_ASSETS: {
   { id: "toman", group: "cash", fa: "موجودی تومانی", unit: "تومان" },
 ];
 
+/** طلاهای داخلی نرخ دستی می‌پذیرند (خالی = نرخ زنده بازار). */
+const MANUAL_RATE_ASSETS: WalletAssetId[] = ["gold18dom", "gold24dom"];
+
 /** کیف پول قدیمی یک ردیف طلا داشت — به نسخه داخلی منتقل می‌شود. */
 function migrateWallet(raw: Record<string, number>): Record<string, number> {
   const w = { ...raw };
@@ -218,6 +221,13 @@ export default function App() {
       return {};
     }
   });
+  const [walletRates, setWalletRates] = useState<Record<string, number>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("gb-wallet-rates") || "{}");
+    } catch {
+      return {};
+    }
+  });
 
   useEffect(() => {
     localStorage.setItem("gb-settings", JSON.stringify(settings));
@@ -228,6 +238,9 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("gb-wallet", JSON.stringify(wallet));
   }, [wallet]);
+  useEffect(() => {
+    localStorage.setItem("gb-wallet-rates", JSON.stringify(walletRates));
+  }, [walletRates]);
 
   const { rates, tags } = useMemo(
     () => (prices ? mapLiveModelToRates(prices) : { rates: {}, tags: {} }),
@@ -282,13 +295,16 @@ export default function App() {
 
   const walletRows = WALLET_ASSETS.map((a) => {
     const qty = Number(wallet[a.id]) || 0;
-    const unitPrice = walletUnitPrice(a.id);
+    const canSetRate = MANUAL_RATE_ASSETS.includes(a.id);
+    const livePrice = walletUnitPrice(a.id);
+    const manualPrice = canSetRate ? Number(walletRates[a.id]) || null : null;
+    const unitPrice = manualPrice ?? livePrice;
     const value = unitPrice != null ? qty * unitPrice : null;
-    return { ...a, qty, unitPrice, value };
+    return { ...a, qty, canSetRate, livePrice, manualPrice, unitPrice, value };
   });
   const walletTotal = walletRows.reduce((sum, r) => sum + (r.value ?? 0), 0);
   const walletTotalUsd = marketUsd ? walletTotal / marketUsd : null;
-  const gold18Gram = walletUnitPrice("gold18dom");
+  const gold18Gram = walletRows.find((r) => r.id === "gold18dom")?.unitPrice ?? null;
   const walletTotalGold18 = gold18Gram ? walletTotal / gold18Gram : null;
 
   const alertPrice = (asset: Alert["asset"]): number | null => {
@@ -573,15 +589,21 @@ export default function App() {
                     <div>
                       <CardTitle>موجودی دارایی‌ها</CardTitle>
                       <CardDescription>
-                        مقدار هر دارایی را وارد کنید — ارزش با نرخ زنده بازار محاسبه و در مرورگر ذخیره
-                        می‌شود
+                        مقدار هر دارایی را وارد کنید — برای طلای داخلی می‌توانید نرخ هر گرم را دستی
+                        بزنید؛ خالی بماند نرخ زنده بازار استفاده می‌شود. همه‌چیز در مرورگر ذخیره
+                        می‌شود.
                       </CardDescription>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setWallet({})}
-                      disabled={walletRows.every((r) => !r.qty)}
+                      onClick={() => {
+                        setWallet({});
+                        setWalletRates({});
+                      }}
+                      disabled={
+                        walletRows.every((r) => !r.qty) && !Object.keys(walletRates).length
+                      }
                     >
                       خالی کردن
                     </Button>
@@ -593,7 +615,6 @@ export default function App() {
                       <tr className="border-b text-muted-foreground">
                         <th className="py-2 text-right">دارایی</th>
                         <th className="py-2 text-right">مقدار</th>
-                        <th className="py-2 text-left">نرخ واحد (تومان)</th>
                         <th className="py-2 text-left">ارزش (تومان)</th>
                         <th className="py-2 text-left">سهم</th>
                       </tr>
@@ -605,7 +626,7 @@ export default function App() {
                         return (
                           <Fragment key={g.id}>
                             <tr className="border-t border-border bg-muted/40">
-                              <td className="py-2 text-right font-bold" colSpan={3}>
+                              <td className="py-2 text-right font-bold" colSpan={2}>
                                 {g.fa}
                                 <span className="mr-2 t-sm font-normal text-muted-foreground">
                                   {g.note}
@@ -634,28 +655,63 @@ export default function App() {
                                     </span>
                                   </td>
                                   <td className="py-2 text-right">
-                                    <input
-                                      className="t-num w-32 rounded-md border border-border bg-background px-2 py-1"
-                                      dir="ltr"
-                                      inputMode="decimal"
-                                      value={wallet[r.id] ?? ""}
-                                      placeholder="0"
-                                      onChange={(e) => {
-                                        const raw = e.target.value.replace(/[^0-9.]/g, "");
-                                        setWallet((w) => {
-                                          const next = { ...w };
-                                          if (raw === "") delete next[r.id];
-                                          else next[r.id] = Number(raw) || 0;
-                                          return next;
-                                        });
-                                      }}
-                                    />
-                                  </td>
-                                  <td className="t-num py-2 text-left text-muted-foreground">
-                                    {r.unitPrice != null ? formatToman(r.unitPrice) : "—"}
+                                    <div className="flex flex-wrap items-center justify-end gap-2">
+                                      <label className="flex items-center gap-1 t-sm text-muted-foreground">
+                                        <span>مقدار</span>
+                                        <input
+                                          className="t-num w-24 rounded-md border border-border bg-background px-2 py-1 text-foreground"
+                                          dir="ltr"
+                                          inputMode="decimal"
+                                          value={wallet[r.id] ?? ""}
+                                          placeholder="0"
+                                          onChange={(e) => {
+                                            const raw = e.target.value.replace(/[^0-9.]/g, "");
+                                            setWallet((w) => {
+                                              const next = { ...w };
+                                              if (raw === "") delete next[r.id];
+                                              else next[r.id] = Number(raw) || 0;
+                                              return next;
+                                            });
+                                          }}
+                                        />
+                                      </label>
+                                      {r.canSetRate ? (
+                                        <label className="flex items-center gap-1 t-sm text-muted-foreground">
+                                          <span>نرخ هر گرم</span>
+                                          <input
+                                            className={cn(
+                                              "t-num w-36 rounded-md border bg-background px-2 py-1 text-foreground",
+                                              r.manualPrice != null
+                                                ? "border-primary/60"
+                                                : "border-border"
+                                            )}
+                                            dir="ltr"
+                                            inputMode="decimal"
+                                            value={walletRates[r.id] ?? ""}
+                                            placeholder={
+                                              r.livePrice != null ? formatToman(r.livePrice) : "0"
+                                            }
+                                            onChange={(e) => {
+                                              const raw = e.target.value.replace(/[^0-9.]/g, "");
+                                              setWalletRates((w) => {
+                                                const next = { ...w };
+                                                if (raw === "") delete next[r.id];
+                                                else next[r.id] = Number(raw) || 0;
+                                                return next;
+                                              });
+                                            }}
+                                          />
+                                        </label>
+                                      ) : null}
+                                    </div>
                                   </td>
                                   <td className="t-num py-2 text-left font-semibold">
                                     {r.value != null ? formatToman(r.value) : "—"}
+                                    {r.manualPrice != null ? (
+                                      <span className="mr-1 t-sm font-normal text-primary">
+                                        دستی
+                                      </span>
+                                    ) : null}
                                   </td>
                                   <td className="t-num py-2 text-left text-muted-foreground">
                                     {share != null ? `${share.toFixed(1)}%` : "—"}
@@ -667,7 +723,7 @@ export default function App() {
                         );
                       })}
                       <tr className="border-t border-primary/30 bg-primary/5">
-                        <td className="py-2 text-right font-bold text-primary" colSpan={3}>
+                        <td className="py-2 text-right font-bold text-primary" colSpan={2}>
                           جمع کل
                         </td>
                         <td className="t-num py-2 text-left font-bold text-primary">
