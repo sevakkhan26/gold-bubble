@@ -193,6 +193,7 @@ def public_connection(conn) -> dict:
         "id": conn.id,
         "label": conn.label,
         "asset": conn.asset,
+        "exchange": conn.exchange,
         "enabled": bool(conn.enabled),
         "method": conn.method,
         "url": conn.url,

@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TradeConnectors } from "@/components/TradeConnectors";
+import { TradePanel } from "@/components/TradePanel";
 import { WalletConnections } from "@/components/WalletConnections";
 import { usePrices } from "@/hooks/usePrices";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
@@ -954,6 +956,29 @@ export default function App() {
 
           {/* ---- 18k domestic ---- */}
           {page === "b18dom" && prices ? (
+            <div className="space-y-4">
+            <TradePanel
+              asset="gold18dom"
+              unit="گرم"
+              quotes={Object.fromEntries(
+                EXCHANGES.map((ex) => {
+                  const pair = rates[ex.id]?.gold18;
+                  const perGram = (v: number | null | undefined) =>
+                    v == null ? null : v / 1000;
+                  return [
+                    ex.id,
+                    { buy: perGram(pickBuy(pair)), sell: perGram(pickSell(pair)) },
+                  ];
+                })
+              )}
+              holdings={Object.fromEntries(
+                Object.entries(walletLive?.byExchange || {}).map(([exId, assets]) => [
+                  exId,
+                  assets.gold18dom,
+                ])
+              )}
+              exchangeNames={Object.fromEntries(EXCHANGES.map((ex) => [ex.id, ex.fa]))}
+            />
             <Card>
               <CardHeader>
                 <CardTitle>آربیتراژ طلای ۱۸ داخلی</CardTitle>
@@ -987,6 +1012,7 @@ export default function App() {
                 </table>
               </CardContent>
             </Card>
+            </div>
           ) : null}
 
           {/* ---- 18k foreign (live global sources) ---- */}
@@ -1357,7 +1383,11 @@ export default function App() {
           {/* ---- SOURCES ---- */}
           {page === "sources" ? (
             <div className="space-y-4">
-              <WalletConnections onChanged={() => void refreshWalletLive()} />
+              <WalletConnections
+                exchanges={EXCHANGES.map((e) => ({ id: e.id, fa: e.fa }))}
+                onChanged={() => void refreshWalletLive()}
+              />
+              <TradeConnectors exchanges={EXCHANGES.map((e) => ({ id: e.id, fa: e.fa }))} />
               <div className="grid gap-3 sm:grid-cols-3">
                 <Card>
                   <CardHeader>

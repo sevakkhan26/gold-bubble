@@ -67,6 +67,8 @@ export type WalletConnection = {
   id: number;
   label: string;
   asset: string;
+  /** Optional exchange this balance belongs to — powers the per-exchange holdings view. */
+  exchange?: string | null;
   enabled: boolean;
   method: string;
   url: string;
@@ -84,6 +86,7 @@ export type WalletConnection = {
 export type WalletConnectionInput = {
   label: string;
   asset: string;
+  exchange?: string;
   url: string;
   jsonPath: string;
   method?: string;
@@ -95,10 +98,13 @@ export type WalletConnectionInput = {
 
 export type WalletBalances = {
   balances: Record<string, number>;
+  /** exchange id → asset → balance (only for connections tagged with an exchange) */
+  byExchange: Record<string, Record<string, number>>;
   connections: {
     id: number;
     label: string;
     asset: string;
+    exchange?: string | null;
     ok: boolean;
     value: number | null;
     ms?: number | null;
@@ -106,6 +112,56 @@ export type WalletBalances = {
   }[];
   fetchedAt?: number;
 };
+
+/** An exchange order endpoint. `dryRun` true means requests are rendered, never sent. */
+export type TradeConnector = {
+  id: number;
+  label: string;
+  exchange: string;
+  asset: string;
+  enabled: boolean;
+  dryRun: boolean;
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  bodyTemplate: string;
+  buyValue: string;
+  sellValue: string;
+};
+
+export type TradeConnectorInput = {
+  label: string;
+  exchange: string;
+  asset: string;
+  url: string;
+  method?: string;
+  headers?: Record<string, string>;
+  bodyTemplate?: string;
+  buyValue?: string;
+  sellValue?: string;
+  enabled?: boolean;
+  dryRun?: boolean;
+};
+
+export type TradeOrder = {
+  id: number;
+  ts?: string | null;
+  connectorId?: number | null;
+  exchange: string;
+  asset: string;
+  side: "buy" | "sell";
+  qty: number;
+  price?: number | null;
+  total?: number | null;
+  status: "dry" | "sent" | "failed";
+  httpStatus?: number | null;
+  requestUrl?: string | null;
+  requestBody?: string | null;
+  response?: string | null;
+  error?: string | null;
+};
+
+export type OrderRequest = { method: string; url: string; body: string };
 
 export const SECRET_MASK = "••••••";
 
@@ -170,6 +226,56 @@ export function testWalletConnection(id: number) {
 
 export function fetchWalletBalances() {
   return getJson<WalletBalances>("/wallet/balances");
+}
+
+export function fetchTradeConnectors() {
+  return getJson<{ connectors: TradeConnector[] }>("/trade/connectors");
+}
+
+export function createTradeConnector(payload: TradeConnectorInput) {
+  return sendJson<TradeConnector>("/trade/connectors", "POST", payload);
+}
+
+export function updateTradeConnector(id: number, payload: Partial<TradeConnectorInput>) {
+  return sendJson<TradeConnector>(`/trade/connectors/${id}`, "PATCH", payload);
+}
+
+export function deleteTradeConnector(id: number) {
+  return sendJson<{ ok: boolean }>(`/trade/connectors/${id}`, "DELETE");
+}
+
+/** Render the request an order would send. Nothing is transmitted. */
+export function previewOrder(payload: {
+  connectorId: number;
+  side: "buy" | "sell";
+  qty: number;
+  price?: number | null;
+}) {
+  return sendJson<{ dryRun: boolean; request: OrderRequest }>("/trade/preview", "POST", payload);
+}
+
+export function placeOrder(payload: {
+  connectorId: number;
+  side: "buy" | "sell";
+  qty: number;
+  price?: number | null;
+}) {
+  return sendJson<{
+    status: "dry" | "sent" | "failed";
+    error?: string | null;
+    httpStatus?: number | null;
+    request?: OrderRequest | null;
+    response?: string | null;
+    order: TradeOrder;
+  }>("/trade/orders", "POST", { ...payload, confirm: true });
+}
+
+export function fetchTradeOrders(params: { asset?: string; exchange?: string; limit?: number }) {
+  const q = new URLSearchParams();
+  if (params.asset) q.set("asset", params.asset);
+  if (params.exchange) q.set("exchange", params.exchange);
+  q.set("limit", String(params.limit ?? 20));
+  return getJson<{ count: number; orders: TradeOrder[] }>(`/trade/orders?${q.toString()}`);
 }
 
 export const EXCHANGE_META: { id: string; fa: string }[] = [

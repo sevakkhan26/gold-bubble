@@ -87,6 +87,11 @@ DATABASE_URL=postgresql+psycopg2://user:pass@localhost:5432/goldmarket
 | `PATCH/DELETE /api/wallet/connections/{id}` | Edit / remove one connector |
 | `POST /api/wallet/connections/{id}/test` | Call one connector now and report the result |
 | `GET /api/wallet/balances` | Live balance per wallet row, summed over enabled connectors |
+| `GET/POST /api/trade/connectors` | List / create exchange order endpoints |
+| `PATCH/DELETE /api/trade/connectors/{id}` | Edit / remove one order endpoint |
+| `POST /api/trade/preview` | Render the request an order would send (nothing transmitted) |
+| `POST /api/trade/orders` | Place one order (`confirm: true` required) |
+| `GET /api/trade/orders?asset=gold18dom&limit=20` | Order history |
 
 **`asset` values:** `usd`, `usdt`, `aed`, `gold18`, `gold24`, `ounce`, `paxgold`, `tethergold`  
 **`exchange` (optional):** `navasan`, `nobitex`, `wallex`, …
@@ -124,9 +129,35 @@ keeps the stored value. Several connections can feed one wallet row (they are
 summed), and anything you type in the wallet overrides the automatic number.
 Use read-only API keys.
 
-Table `wallet_connections`: `id`, `label`, `asset`, `enabled`, `method`, `url`,
-`headers_json`, `body`, `json_path`, `multiplier`, plus the last result
-(`last_value`, `last_ok`, `last_error`, `last_checked_at`).
+Table `wallet_connections`: `id`, `label`, `asset`, `exchange`, `enabled`,
+`method`, `url`, `headers_json`, `body`, `json_path`, `multiplier`, plus the last
+result (`last_value`, `last_ok`, `last_error`, `last_checked_at`). Tagging a
+connection with an `exchange` is what makes per-venue holdings show up in the
+trade panel.
+
+## Trading (معامله)
+
+The *آربیتراژ طلای ۱۸ داخلی* page carries a buy/sell ticket: pick the venue, see
+what you hold there and the live per-gram bid/ask, enter a quantity, and place
+the order. Orders go out through **trade connectors** (added in *منابع API*):
+
+| Field | Example |
+|-------|---------|
+| Exchange / wallet row | `nobitex` / `gold18dom` |
+| Method / URL | `POST https://api.exchange.tld/market/orders/add` |
+| Auth header | `Authorization: Token …` (needs trade permission) |
+| Body template | `{"side":"{{side}}","amount":{{qty}},"price":{{price}}}` |
+| Buy / sell values | `buy` / `sell`, or `BUY` / `SELL` |
+
+Placeholders `{{side}}`, `{{qty}}`, `{{price}}`, `{{total}}`, `{{asset}}` and
+`{{exchange}}` are substituted in both URL and body; a placeholder with no value
+(e.g. `{{price}}` on a market order) is a hard error rather than a blank.
+
+**Safety.** A new connector is created in **dry-run**: the request is rendered and
+shown but never transmitted, until you press *فعال‌سازی ارسال*. `POST
+/api/trade/orders` also refuses anything without `confirm: true`, a valid side,
+and a positive quantity. Every attempt — dry, sent, or failed — is written to
+`trade_orders` with the exact request and the exchange's response.
 
 ## Tests
 

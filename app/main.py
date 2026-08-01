@@ -11,8 +11,15 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from . import config, wallet
-from .db import PricePoint, SessionLocal, WalletConnection, init_db
+from . import config, trade, wallet
+from .db import (
+    PricePoint,
+    SessionLocal,
+    TradeConnector,
+    TradeOrder,
+    WalletConnection,
+    init_db,
+)
 from .refresher import refresher
 from .version import APP_VERSION, public_version
 
@@ -171,6 +178,7 @@ class ConnectionIn(BaseModel):
     body: str | None = None
     multiplier: float = 1.0
     enabled: bool = True
+    exchange: str | None = None
 
 
 class ConnectionPatch(BaseModel):
@@ -183,6 +191,7 @@ class ConnectionPatch(BaseModel):
     body: str | None = None
     multiplier: float | None = None
     enabled: bool | None = None
+    exchange: str | None = None
 
 
 def _check_asset(asset: str) -> str:
@@ -240,6 +249,7 @@ def create_connection(payload: ConnectionIn):
         body=payload.body,
         multiplier=payload.multiplier if payload.multiplier is not None else 1.0,
         enabled=payload.enabled,
+        exchange=payload.exchange or None,
     )
     with SessionLocal() as s:
         s.add(conn)
@@ -269,6 +279,8 @@ def update_connection(conn_id: int, payload: ConnectionPatch):
             conn.multiplier = payload.multiplier
         if payload.enabled is not None:
             conn.enabled = payload.enabled
+        if payload.exchange is not None:
+            conn.exchange = payload.exchange or None
         s.commit()
         return wallet.public_connection(conn)
 
@@ -301,22 +313,32 @@ def wallet_balances():
             select(WalletConnection).where(WalletConnection.enabled.is_(True))
         ).scalars().all()
         if not rows:
-            return {"balances": {}, "connections": [], "fetchedAt": time.time()}
+            return {
+                "balances": {},
+                "byExchange": {},
+                "connections": [],
+                "fetchedAt": time.time(),
+            }
 
         with ThreadPoolExecutor(max_workers=min(6, len(rows))) as pool:
             results = list(pool.map(wallet.fetch_balance, rows))
 
         balances: dict[str, float] = {}
+        by_exchange: dict[str, dict[str, float]] = {}
         out = []
         for conn, result in zip(rows, results):
             wallet.record_result(conn, result)
             if result["ok"] and result["value"] is not None:
                 balances[conn.asset] = balances.get(conn.asset, 0.0) + result["value"]
+                if conn.exchange:
+                    per_ex = by_exchange.setdefault(conn.exchange, {})
+                    per_ex[conn.asset] = per_ex.get(conn.asset, 0.0) + result["value"]
             out.append(
                 {
                     "id": conn.id,
                     "label": conn.label,
                     "asset": conn.asset,
+                    "exchange": conn.exchange,
                     "ok": result["ok"],
                     "value": result["value"],
                     "ms": result["ms"],
@@ -324,7 +346,199 @@ def wallet_balances():
                 }
             )
         s.commit()
-    return {"balances": balances, "connections": out, "fetchedAt": time.time()}
+    return {
+        "balances": balances,
+        "byExchange": by_exchange,
+        "connections": out,
+        "fetchedAt": time.time(),
+    }
+
+
+# ----------------------------------------------------------------- trade API
+
+
+class ConnectorIn(BaseModel):
+    label: str = Field(min_length=1, max_length=60)
+    exchange: str = Field(min_length=1, max_length=30)
+    asset: str
+    url: str
+    method: str = "POST"
+    headers: dict[str, str] | None = None
+    bodyTemplate: str = ""
+    buyValue: str = "buy"
+    sellValue: str = "sell"
+    enabled: bool = True
+    dryRun: bool = True
+
+
+class ConnectorPatch(BaseModel):
+    label: str | None = Field(default=None, min_length=1, max_length=60)
+    exchange: str | None = None
+    asset: str | None = None
+    url: str | None = None
+    method: str | None = None
+    headers: dict[str, str] | None = None
+    bodyTemplate: str | None = None
+    buyValue: str | None = None
+    sellValue: str | None = None
+    enabled: bool | None = None
+    dryRun: bool | None = None
+
+
+class OrderIn(BaseModel):
+    connectorId: int
+    side: str
+    qty: float
+    price: float | None = None
+    confirm: bool = False
+
+
+def _check_trade_method(method: str) -> str:
+    m = (method or "POST").upper()
+    if m not in {"GET", "POST", "PUT", "DELETE"}:
+        raise HTTPException(status_code=422, detail="method must be GET, POST, PUT or DELETE")
+    return m
+
+
+def _get_connector(s, conn_id: int) -> TradeConnector:
+    conn = s.get(TradeConnector, conn_id)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="connector not found")
+    return conn
+
+
+@app.get("/api/trade/connectors")
+def list_connectors():
+    with SessionLocal() as s:
+        rows = s.execute(select(TradeConnector).order_by(TradeConnector.id)).scalars().all()
+        return {"connectors": [trade.public_connector(c) for c in rows]}
+
+
+@app.post("/api/trade/connectors", status_code=201)
+def create_connector(payload: ConnectorIn):
+    conn = TradeConnector(
+        label=payload.label.strip(),
+        exchange=payload.exchange.strip(),
+        asset=_check_asset(payload.asset),
+        url=_check_url(payload.url),
+        method=_check_trade_method(payload.method),
+        headers_json=wallet.merge_headers(None, payload.headers),
+        body_template=payload.bodyTemplate or "",
+        buy_value=payload.buyValue or "buy",
+        sell_value=payload.sellValue or "sell",
+        enabled=payload.enabled,
+        dry_run=payload.dryRun,
+    )
+    with SessionLocal() as s:
+        s.add(conn)
+        s.commit()
+        return trade.public_connector(conn)
+
+
+@app.patch("/api/trade/connectors/{conn_id}")
+def update_connector(conn_id: int, payload: ConnectorPatch):
+    with SessionLocal() as s:
+        conn = _get_connector(s, conn_id)
+        if payload.label is not None:
+            conn.label = payload.label.strip()
+        if payload.exchange is not None:
+            conn.exchange = payload.exchange.strip()
+        if payload.asset is not None:
+            conn.asset = _check_asset(payload.asset)
+        if payload.url is not None:
+            conn.url = _check_url(payload.url)
+        if payload.method is not None:
+            conn.method = _check_trade_method(payload.method)
+        if payload.headers is not None:
+            conn.headers_json = wallet.merge_headers(conn.headers_json, payload.headers)
+        if payload.bodyTemplate is not None:
+            conn.body_template = payload.bodyTemplate
+        if payload.buyValue is not None:
+            conn.buy_value = payload.buyValue
+        if payload.sellValue is not None:
+            conn.sell_value = payload.sellValue
+        if payload.enabled is not None:
+            conn.enabled = payload.enabled
+        if payload.dryRun is not None:
+            conn.dry_run = payload.dryRun
+        s.commit()
+        return trade.public_connector(conn)
+
+
+@app.delete("/api/trade/connectors/{conn_id}")
+def delete_connector(conn_id: int):
+    with SessionLocal() as s:
+        conn = _get_connector(s, conn_id)
+        s.delete(conn)
+        s.commit()
+    return {"ok": True, "id": conn_id}
+
+
+@app.post("/api/trade/preview")
+def preview_order(payload: OrderIn):
+    """Render the exact request an order would send — nothing is transmitted."""
+    with SessionLocal() as s:
+        conn = _get_connector(s, payload.connectorId)
+        try:
+            req = trade.build_request(
+                conn, side=payload.side, qty=payload.qty, price=payload.price
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        return {"dryRun": bool(conn.dry_run), "request": req}
+
+
+@app.post("/api/trade/orders", status_code=201)
+def place_order(payload: OrderIn):
+    """Place one order. Requires confirm=true; dry-run connectors never transmit."""
+    if not payload.confirm:
+        raise HTTPException(status_code=422, detail="confirm must be true to place an order")
+    if payload.side not in trade.SIDES:
+        raise HTTPException(status_code=422, detail="side must be buy or sell")
+    if payload.qty is None or payload.qty <= 0:
+        raise HTTPException(status_code=422, detail="qty must be greater than zero")
+
+    with SessionLocal() as s:
+        conn = _get_connector(s, payload.connectorId)
+        if not conn.enabled:
+            raise HTTPException(status_code=422, detail="connector is disabled")
+
+        result = trade.send_order(conn, side=payload.side, qty=payload.qty, price=payload.price)
+        req = result.get("request") or {}
+        order = TradeOrder(
+            connector_id=conn.id,
+            exchange=conn.exchange,
+            asset=conn.asset,
+            side=payload.side,
+            qty=payload.qty,
+            price=payload.price,
+            total=(payload.qty * payload.price) if payload.price is not None else None,
+            status=result["status"],
+            http_status=result.get("httpStatus"),
+            request_url=req.get("url"),
+            request_body=req.get("body"),
+            response_text=result.get("response"),
+            error=result.get("error"),
+        )
+        s.add(order)
+        s.commit()
+        return {**result, "order": trade.public_order(order)}
+
+
+@app.get("/api/trade/orders")
+def list_orders(
+    limit: int = Query(50, ge=1, le=500),
+    asset: str | None = Query(None),
+    exchange: str | None = Query(None),
+):
+    with SessionLocal() as s:
+        stmt = select(TradeOrder)
+        if asset:
+            stmt = stmt.where(TradeOrder.asset == asset)
+        if exchange:
+            stmt = stmt.where(TradeOrder.exchange == exchange)
+        rows = s.execute(stmt.order_by(TradeOrder.ts.desc()).limit(limit)).scalars().all()
+        return {"count": len(rows), "orders": [trade.public_order(o) for o in rows]}
 
 
 def _spa_index() -> FileResponse:
