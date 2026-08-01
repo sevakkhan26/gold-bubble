@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   Bell,
@@ -109,16 +109,49 @@ type Alert = {
   value: number;
 };
 
-type WalletAssetId = "gold18" | "gold24" | "usd" | "aed" | "usdt" | "toman";
+type WalletAssetId =
+  | "gold18dom"
+  | "gold18for"
+  | "gold24dom"
+  | "gold24for"
+  | "usd"
+  | "aed"
+  | "usdt"
+  | "toman";
 
-const WALLET_ASSETS: { id: WalletAssetId; fa: string; unit: string }[] = [
-  { id: "gold18", fa: "طلای ۱۸ عیار", unit: "گرم" },
-  { id: "gold24", fa: "شمش ۲۴ عیار", unit: "گرم" },
-  { id: "usd", fa: "دلار", unit: "دلار" },
-  { id: "aed", fa: "درهم", unit: "درهم" },
-  { id: "usdt", fa: "تتر", unit: "تتر" },
-  { id: "toman", fa: "موجودی تومانی", unit: "تومان" },
+type WalletGroup = "gold18" | "gold24" | "cash";
+
+const WALLET_GROUPS: { id: WalletGroup; fa: string; note: string }[] = [
+  { id: "gold18", fa: "طلای ۱۸ عیار", note: "داخلی از بازار ایران · خارجی از انس جهانی" },
+  { id: "gold24", fa: "طلای ۲۴ عیار", note: "داخلی از بازار ایران · خارجی از انس جهانی" },
+  { id: "cash", fa: "ارز و نقد", note: "نرخ زنده صرافی‌ها" },
 ];
+
+const WALLET_ASSETS: {
+  id: WalletAssetId;
+  group: WalletGroup;
+  fa: string;
+  unit: string;
+}[] = [
+  { id: "gold18dom", group: "gold18", fa: "۱۸ عیار داخلی", unit: "گرم" },
+  { id: "gold18for", group: "gold18", fa: "۱۸ عیار خارجی", unit: "گرم" },
+  { id: "gold24dom", group: "gold24", fa: "۲۴ عیار داخلی", unit: "گرم" },
+  { id: "gold24for", group: "gold24", fa: "۲۴ عیار خارجی", unit: "گرم" },
+  { id: "usd", group: "cash", fa: "دلار", unit: "دلار" },
+  { id: "aed", group: "cash", fa: "درهم", unit: "درهم" },
+  { id: "usdt", group: "cash", fa: "تتر", unit: "تتر" },
+  { id: "toman", group: "cash", fa: "موجودی تومانی", unit: "تومان" },
+];
+
+/** کیف پول قدیمی یک ردیف طلا داشت — به نسخه داخلی منتقل می‌شود. */
+function migrateWallet(raw: Record<string, number>): Record<string, number> {
+  const w = { ...raw };
+  if (w.gold18 != null && w.gold18dom == null) w.gold18dom = w.gold18;
+  if (w.gold24 != null && w.gold24dom == null) w.gold24dom = w.gold24;
+  delete w.gold18;
+  delete w.gold24;
+  return w;
+}
 
 function BuySell({ buy, sell }: { buy?: number | null; sell?: number | null }) {
   if (buy == null && sell == null) return <span className="text-muted-foreground">—</span>;
@@ -180,7 +213,7 @@ export default function App() {
   const [alertValue, setAlertValue] = useState("");
   const [wallet, setWallet] = useState<Record<string, number>>(() => {
     try {
-      return JSON.parse(localStorage.getItem("gb-wallet") || "{}");
+      return migrateWallet(JSON.parse(localStorage.getItem("gb-wallet") || "{}"));
     } catch {
       return {};
     }
@@ -228,12 +261,20 @@ export default function App() {
     if (id === "usd") return marketUsd;
     if (id === "aed") return marketAed ?? fairAed;
     if (id === "usdt") return usdtSell;
-    if (id === "gold18") {
+    if (id === "gold18dom") {
       const kg = pickSell(prices?.market?.gold18PerKg) ?? domAvg18;
       return kg != null ? kg / 1000 : null;
     }
-    if (id === "gold24") {
+    if (id === "gold24dom") {
       const kg = pickSell(prices?.market?.shemsh24PerKg) ?? domAvg24;
+      return kg != null ? kg / 1000 : null;
+    }
+    if (id === "gold18for") {
+      const kg = gold18FromKg(marketUsd, ounceUsd, settings.troyOunce, settings.purity);
+      return kg != null ? kg / 1000 : null;
+    }
+    if (id === "gold24for") {
+      const kg = gold24FromKg(marketUsd, ounceUsd, settings.troyOunce);
       return kg != null ? kg / 1000 : null;
     }
     return null;
@@ -247,7 +288,7 @@ export default function App() {
   });
   const walletTotal = walletRows.reduce((sum, r) => sum + (r.value ?? 0), 0);
   const walletTotalUsd = marketUsd ? walletTotal / marketUsd : null;
-  const gold18Gram = walletUnitPrice("gold18");
+  const gold18Gram = walletUnitPrice("gold18dom");
   const walletTotalGold18 = gold18Gram ? walletTotal / gold18Gram : null;
 
   const alertPrice = (asset: Alert["asset"]): number | null => {
@@ -558,43 +599,71 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {walletRows.map((r) => {
-                        const share =
-                          walletTotal > 0 && r.value != null ? (r.value / walletTotal) * 100 : null;
+                      {WALLET_GROUPS.map((g) => {
+                        const rows = walletRows.filter((r) => r.group === g.id);
+                        const groupValue = rows.reduce((sum, r) => sum + (r.value ?? 0), 0);
                         return (
-                          <tr key={r.id} className="border-b border-border/50">
-                            <td className="py-2 text-right font-semibold">
-                              {r.fa}
-                              <span className="mr-1 t-sm text-muted-foreground">({r.unit})</span>
-                            </td>
-                            <td className="py-2 text-right">
-                              <input
-                                className="t-num w-32 rounded-md border border-border bg-background px-2 py-1"
-                                dir="ltr"
-                                inputMode="decimal"
-                                value={wallet[r.id] ?? ""}
-                                placeholder="0"
-                                onChange={(e) => {
-                                  const raw = e.target.value.replace(/[^0-9.]/g, "");
-                                  setWallet((w) => {
-                                    const next = { ...w };
-                                    if (raw === "") delete next[r.id];
-                                    else next[r.id] = Number(raw) || 0;
-                                    return next;
-                                  });
-                                }}
-                              />
-                            </td>
-                            <td className="t-num py-2 text-left text-muted-foreground">
-                              {r.unitPrice != null ? formatToman(r.unitPrice) : "—"}
-                            </td>
-                            <td className="t-num py-2 text-left font-semibold">
-                              {r.value != null ? formatToman(r.value) : "—"}
-                            </td>
-                            <td className="t-num py-2 text-left text-muted-foreground">
-                              {share != null ? `${share.toFixed(1)}%` : "—"}
-                            </td>
-                          </tr>
+                          <Fragment key={g.id}>
+                            <tr className="border-t border-border bg-muted/40">
+                              <td className="py-2 text-right font-bold" colSpan={3}>
+                                {g.fa}
+                                <span className="mr-2 t-sm font-normal text-muted-foreground">
+                                  {g.note}
+                                </span>
+                              </td>
+                              <td className="t-num py-2 text-left font-bold">
+                                {groupValue > 0 ? formatToman(groupValue) : "—"}
+                              </td>
+                              <td className="t-num py-2 text-left text-muted-foreground">
+                                {walletTotal > 0 && groupValue > 0
+                                  ? `${((groupValue / walletTotal) * 100).toFixed(1)}%`
+                                  : "—"}
+                              </td>
+                            </tr>
+                            {rows.map((r) => {
+                              const share =
+                                walletTotal > 0 && r.value != null
+                                  ? (r.value / walletTotal) * 100
+                                  : null;
+                              return (
+                                <tr key={r.id} className="border-b border-border/50">
+                                  <td className="py-2 pr-4 text-right font-semibold">
+                                    {r.fa}
+                                    <span className="mr-1 t-sm text-muted-foreground">
+                                      ({r.unit})
+                                    </span>
+                                  </td>
+                                  <td className="py-2 text-right">
+                                    <input
+                                      className="t-num w-32 rounded-md border border-border bg-background px-2 py-1"
+                                      dir="ltr"
+                                      inputMode="decimal"
+                                      value={wallet[r.id] ?? ""}
+                                      placeholder="0"
+                                      onChange={(e) => {
+                                        const raw = e.target.value.replace(/[^0-9.]/g, "");
+                                        setWallet((w) => {
+                                          const next = { ...w };
+                                          if (raw === "") delete next[r.id];
+                                          else next[r.id] = Number(raw) || 0;
+                                          return next;
+                                        });
+                                      }}
+                                    />
+                                  </td>
+                                  <td className="t-num py-2 text-left text-muted-foreground">
+                                    {r.unitPrice != null ? formatToman(r.unitPrice) : "—"}
+                                  </td>
+                                  <td className="t-num py-2 text-left font-semibold">
+                                    {r.value != null ? formatToman(r.value) : "—"}
+                                  </td>
+                                  <td className="t-num py-2 text-left text-muted-foreground">
+                                    {share != null ? `${share.toFixed(1)}%` : "—"}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </Fragment>
                         );
                       })}
                       <tr className="border-t border-primary/30 bg-primary/5">
