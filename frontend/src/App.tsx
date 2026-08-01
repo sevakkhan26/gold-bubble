@@ -9,6 +9,7 @@ import {
   Sigma,
   Sparkles,
   Radio,
+  Wallet,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ import { cn, formatToman, formatUsd, timeAgo } from "@/lib/utils";
 
 type PageId =
   | "market"
+  | "wallet"
   | "bubbles"
   | "formulas"
   | "b24dom"
@@ -48,6 +50,7 @@ type PageId =
 
 const PAGE_ROUTES: Record<PageId, string> = {
   market: "/market",
+  wallet: "/wallet",
   bubbles: "/bubbles",
   formulas: "/formulas",
   b24dom: "/b24dom",
@@ -69,6 +72,7 @@ function pageFromPath(pathname: string): PageId {
 
 const NAV: { id: PageId; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "market", label: "مانیتورینگ بازار", icon: LayoutDashboard },
+  { id: "wallet", label: "کیف پول", icon: Wallet },
   { id: "bubbles", label: "حباب‌ها", icon: Sparkles },
   { id: "formulas", label: "فرمول‌ها", icon: Sigma },
   { id: "b24dom", label: "آربیتراژ طلای ۲۴ داخلی", icon: Coins },
@@ -84,6 +88,7 @@ const NAV: { id: PageId; label: string; icon: typeof LayoutDashboard }[] = [
 
 const PAGE_META: Record<PageId, { title: string; subtitle: string }> = {
   market: { title: "تابلوی بازار", subtitle: "قیمت لحظه‌ای طلا و صرافی‌ها از API" },
+  wallet: { title: "کیف پول", subtitle: "موجودی دارایی‌ها و ارزش لحظه‌ای آن‌ها به تومان" },
   bubbles: { title: "حباب‌ها", subtitle: "نمای کلی حباب درهم، دلار، طلای ۱۸ و شمش ۲۴" },
   formulas: { title: "فرمول‌ها", subtitle: "مرجع همه فرمول‌های محاسباتی سامانه" },
   b24dom: { title: "آربیتراژ طلای ۲۴ عیار داخلی", subtitle: "فاصله هر صرافی از میانگین داخلی شمش ۲۴" },
@@ -103,6 +108,17 @@ type Alert = {
   cond: "above" | "below";
   value: number;
 };
+
+type WalletAssetId = "gold18" | "gold24" | "usd" | "aed" | "usdt" | "toman";
+
+const WALLET_ASSETS: { id: WalletAssetId; fa: string; unit: string }[] = [
+  { id: "gold18", fa: "طلای ۱۸ عیار", unit: "گرم" },
+  { id: "gold24", fa: "شمش ۲۴ عیار", unit: "گرم" },
+  { id: "usd", fa: "دلار", unit: "دلار" },
+  { id: "aed", fa: "درهم", unit: "درهم" },
+  { id: "usdt", fa: "تتر", unit: "تتر" },
+  { id: "toman", fa: "موجودی تومانی", unit: "تومان" },
+];
 
 function BuySell({ buy, sell }: { buy?: number | null; sell?: number | null }) {
   if (buy == null && sell == null) return <span className="text-muted-foreground">—</span>;
@@ -162,6 +178,13 @@ export default function App() {
   const [alertAsset, setAlertAsset] = useState<Alert["asset"]>("dollar");
   const [alertCond, setAlertCond] = useState<Alert["cond"]>("above");
   const [alertValue, setAlertValue] = useState("");
+  const [wallet, setWallet] = useState<Record<string, number>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("gb-wallet") || "{}");
+    } catch {
+      return {};
+    }
+  });
 
   useEffect(() => {
     localStorage.setItem("gb-settings", JSON.stringify(settings));
@@ -169,6 +192,9 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("gb-alerts", JSON.stringify(alerts));
   }, [alerts]);
+  useEffect(() => {
+    localStorage.setItem("gb-wallet", JSON.stringify(wallet));
+  }, [wallet]);
 
   const { rates, tags } = useMemo(
     () => (prices ? mapLiveModelToRates(prices) : { rates: {}, tags: {} }),
@@ -192,6 +218,37 @@ export default function App() {
   const marketAed = pickSell(prices?.market?.aed);
   const fairAed = marketUsd != null ? Math.round(marketUsd / settings.aedPeg) : null;
   const fairUsdFromAed = marketAed != null ? Math.round(marketAed * settings.aedPeg) : null;
+
+  const usdtSell =
+    pickSell(prices?.usdtByExchange?.nobitex) ?? pickSell(prices?.usdtByExchange?.wallex);
+
+  /** قیمت هر واحد از دارایی کیف پول به تومان */
+  const walletUnitPrice = (id: WalletAssetId): number | null => {
+    if (id === "toman") return 1;
+    if (id === "usd") return marketUsd;
+    if (id === "aed") return marketAed ?? fairAed;
+    if (id === "usdt") return usdtSell;
+    if (id === "gold18") {
+      const kg = pickSell(prices?.market?.gold18PerKg) ?? domAvg18;
+      return kg != null ? kg / 1000 : null;
+    }
+    if (id === "gold24") {
+      const kg = pickSell(prices?.market?.shemsh24PerKg) ?? domAvg24;
+      return kg != null ? kg / 1000 : null;
+    }
+    return null;
+  };
+
+  const walletRows = WALLET_ASSETS.map((a) => {
+    const qty = Number(wallet[a.id]) || 0;
+    const unitPrice = walletUnitPrice(a.id);
+    const value = unitPrice != null ? qty * unitPrice : null;
+    return { ...a, qty, unitPrice, value };
+  });
+  const walletTotal = walletRows.reduce((sum, r) => sum + (r.value ?? 0), 0);
+  const walletTotalUsd = marketUsd ? walletTotal / marketUsd : null;
+  const gold18Gram = walletUnitPrice("gold18");
+  const walletTotalGold18 = gold18Gram ? walletTotal / gold18Gram : null;
 
   const alertPrice = (asset: Alert["asset"]): number | null => {
     if (asset === "ounce") return ounceUsd;
@@ -432,6 +489,132 @@ export default function App() {
                       );
                     })}
                   </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : null}
+
+          {/* ---- WALLET ---- */}
+          {page === "wallet" ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="stat-card">
+                  <CardHeader className="pb-2">
+                    <CardDescription>ارزش کل کیف پول</CardDescription>
+                    <CardTitle className="t-num-lg font-bold tracking-tight text-primary">
+                      {formatToman(walletTotal)} تومان
+                    </CardTitle>
+                  </CardHeader>
+                </div>
+                <div className="stat-card">
+                  <CardHeader className="pb-2">
+                    <CardDescription>معادل دلاری</CardDescription>
+                    <CardTitle className="t-num-lg font-bold tracking-tight">
+                      {walletTotalUsd != null ? `${formatUsd(walletTotalUsd)} $` : "—"}
+                    </CardTitle>
+                  </CardHeader>
+                </div>
+                <div className="stat-card">
+                  <CardHeader className="pb-2">
+                    <CardDescription>معادل طلای ۱۸ عیار</CardDescription>
+                    <CardTitle className="t-num-lg font-bold tracking-tight">
+                      {walletTotalGold18 != null
+                        ? `${formatUsd(walletTotalGold18, 2)} گرم`
+                        : "—"}
+                    </CardTitle>
+                  </CardHeader>
+                </div>
+              </div>
+
+              <Card className="stat-card border-border/80 shadow-md">
+                <CardHeader>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <CardTitle>موجودی دارایی‌ها</CardTitle>
+                      <CardDescription>
+                        مقدار هر دارایی را وارد کنید — ارزش با نرخ زنده بازار محاسبه و در مرورگر ذخیره
+                        می‌شود
+                      </CardDescription>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setWallet({})}
+                      disabled={walletRows.every((r) => !r.qty)}
+                    >
+                      خالی کردن
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="overflow-x-auto">
+                  <table className="data-table">
+                    <thead>
+                      <tr className="border-b text-muted-foreground">
+                        <th className="py-2 text-right">دارایی</th>
+                        <th className="py-2 text-right">مقدار</th>
+                        <th className="py-2 text-left">نرخ واحد (تومان)</th>
+                        <th className="py-2 text-left">ارزش (تومان)</th>
+                        <th className="py-2 text-left">سهم</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {walletRows.map((r) => {
+                        const share =
+                          walletTotal > 0 && r.value != null ? (r.value / walletTotal) * 100 : null;
+                        return (
+                          <tr key={r.id} className="border-b border-border/50">
+                            <td className="py-2 text-right font-semibold">
+                              {r.fa}
+                              <span className="mr-1 t-sm text-muted-foreground">({r.unit})</span>
+                            </td>
+                            <td className="py-2 text-right">
+                              <input
+                                className="t-num w-32 rounded-md border border-border bg-background px-2 py-1"
+                                dir="ltr"
+                                inputMode="decimal"
+                                value={wallet[r.id] ?? ""}
+                                placeholder="0"
+                                onChange={(e) => {
+                                  const raw = e.target.value.replace(/[^0-9.]/g, "");
+                                  setWallet((w) => {
+                                    const next = { ...w };
+                                    if (raw === "") delete next[r.id];
+                                    else next[r.id] = Number(raw) || 0;
+                                    return next;
+                                  });
+                                }}
+                              />
+                            </td>
+                            <td className="t-num py-2 text-left text-muted-foreground">
+                              {r.unitPrice != null ? formatToman(r.unitPrice) : "—"}
+                            </td>
+                            <td className="t-num py-2 text-left font-semibold">
+                              {r.value != null ? formatToman(r.value) : "—"}
+                            </td>
+                            <td className="t-num py-2 text-left text-muted-foreground">
+                              {share != null ? `${share.toFixed(1)}%` : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="border-t border-primary/30 bg-primary/5">
+                        <td className="py-2 text-right font-bold text-primary" colSpan={3}>
+                          جمع کل
+                        </td>
+                        <td className="t-num py-2 text-left font-bold text-primary">
+                          {formatToman(walletTotal)}
+                        </td>
+                        <td className="t-num py-2 text-left text-primary">
+                          {walletTotal > 0 ? "100%" : "—"}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  {!prices ? (
+                    <p className="mt-3 t-sm text-warn">
+                      نرخ زنده در دسترس نیست — مقادیر ذخیره می‌شوند ولی ارزش‌گذاری انجام نمی‌شود.
+                    </p>
+                  ) : null}
                 </CardContent>
               </Card>
             </div>

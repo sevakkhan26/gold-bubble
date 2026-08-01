@@ -21,6 +21,7 @@ INDEX_HTML = PUBLIC_DIR / "index.html"
 SPA_ROUTES = {
     "",
     "market",
+    "wallet",
     "bubbles",
     "formulas",
     "alerts",
