@@ -16,7 +16,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { WalletConnections } from "@/components/WalletConnections";
 import { usePrices } from "@/hooks/usePrices";
+import { useWalletBalances } from "@/hooks/useWalletBalances";
 import {
   DEFAULT_SETTINGS,
   EXCHANGES,
@@ -175,6 +177,11 @@ function pctColor(pct: number | null) {
 
 export default function App() {
   const { prices, health, report, error, loading, updatedAt, refresh } = usePrices();
+  const {
+    data: walletLive,
+    error: walletLiveError,
+    refresh: refreshWalletLive,
+  } = useWalletBalances();
   const [page, setPage] = useState<PageId>(() =>
     typeof window !== "undefined" ? pageFromPath(window.location.pathname) : "market"
   );
@@ -294,13 +301,15 @@ export default function App() {
   };
 
   const walletRows = WALLET_ASSETS.map((a) => {
-    const qty = Number(wallet[a.id]) || 0;
+    const autoQty = walletLive?.balances?.[a.id] ?? null;
+    const manualQty = wallet[a.id] == null ? null : Number(wallet[a.id]) || 0;
+    const qty = manualQty ?? autoQty ?? 0;
     const canSetRate = MANUAL_RATE_ASSETS.includes(a.id);
     const livePrice = walletUnitPrice(a.id);
     const manualPrice = canSetRate ? Number(walletRates[a.id]) || null : null;
     const unitPrice = manualPrice ?? livePrice;
     const value = unitPrice != null ? qty * unitPrice : null;
-    return { ...a, qty, canSetRate, livePrice, manualPrice, unitPrice, value };
+    return { ...a, qty, autoQty, manualQty, canSetRate, livePrice, manualPrice, unitPrice, value };
   });
   const walletTotal = walletRows.reduce((sum, r) => sum + (r.value ?? 0), 0);
   const walletTotalUsd = marketUsd ? walletTotal / marketUsd : null;
@@ -589,24 +598,34 @@ export default function App() {
                     <div>
                       <CardTitle>موجودی دارایی‌ها</CardTitle>
                       <CardDescription>
-                        مقدار هر دارایی را وارد کنید — برای طلای داخلی می‌توانید نرخ هر گرم را دستی
-                        بزنید؛ خالی بماند نرخ زنده بازار استفاده می‌شود. همه‌چیز در مرورگر ذخیره
-                        می‌شود.
+                        مقدارها از API صرافی‌ها خوانده می‌شود؛ هر عددی که دستی وارد کنید جای مقدار
+                        خودکار را می‌گیرد. برای طلای داخلی می‌توانید نرخ هر گرم را هم دستی بزنید.
                       </CardDescription>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setWallet({});
-                        setWalletRates({});
-                      }}
-                      disabled={
-                        walletRows.every((r) => !r.qty) && !Object.keys(walletRates).length
-                      }
-                    >
-                      خالی کردن
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void refreshWalletLive()}
+                        title="خواندن دوباره موجودی از صرافی‌ها"
+                      >
+                        <RefreshCw className="size-3.5" />
+                        موجودی
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setWallet({});
+                          setWalletRates({});
+                        }}
+                        disabled={
+                          !Object.keys(wallet).length && !Object.keys(walletRates).length
+                        }
+                      >
+                        پاک کردن دستی‌ها
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
@@ -659,11 +678,25 @@ export default function App() {
                                       <label className="flex items-center gap-1 t-sm text-muted-foreground">
                                         <span>مقدار</span>
                                         <input
-                                          className="t-num w-24 rounded-md border border-border bg-background px-2 py-1 text-foreground"
+                                          className={cn(
+                                            "t-num w-24 rounded-md border bg-background px-2 py-1 text-foreground",
+                                            r.manualQty != null
+                                              ? "border-border"
+                                              : r.autoQty != null
+                                                ? "border-primary/60"
+                                                : "border-border"
+                                          )}
                                           dir="ltr"
                                           inputMode="decimal"
                                           value={wallet[r.id] ?? ""}
-                                          placeholder="0"
+                                          placeholder={
+                                            r.autoQty != null ? formatUsd(r.autoQty, 4) : "0"
+                                          }
+                                          title={
+                                            r.autoQty != null
+                                              ? "از API صرافی خوانده می‌شود — برای بازنویسی عدد وارد کنید"
+                                              : undefined
+                                          }
                                           onChange={(e) => {
                                             const raw = e.target.value.replace(/[^0-9.]/g, "");
                                             setWallet((w) => {
@@ -707,9 +740,14 @@ export default function App() {
                                   </td>
                                   <td className="t-num py-2 text-left font-semibold">
                                     {r.value != null ? formatToman(r.value) : "—"}
+                                    {r.manualQty == null && r.autoQty != null ? (
+                                      <span className="mr-1 t-sm font-normal text-primary">
+                                        خودکار
+                                      </span>
+                                    ) : null}
                                     {r.manualPrice != null ? (
                                       <span className="mr-1 t-sm font-normal text-primary">
-                                        دستی
+                                        نرخ دستی
                                       </span>
                                     ) : null}
                                   </td>
@@ -740,6 +778,27 @@ export default function App() {
                       نرخ زنده در دسترس نیست — مقادیر ذخیره می‌شوند ولی ارزش‌گذاری انجام نمی‌شود.
                     </p>
                   ) : null}
+                  {walletLiveError ? (
+                    <p className="mt-3 t-sm text-warn">
+                      خواندن موجودی از صرافی‌ها ناموفق بود: {walletLiveError}
+                    </p>
+                  ) : null}
+                  {walletLive?.connections?.length ? (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 t-sm text-muted-foreground">
+                      <span>اتصال‌ها:</span>
+                      {walletLive.connections.map((c) => (
+                        <Badge key={c.id} variant={c.ok ? "live" : "danger"}>
+                          {c.label}
+                          {c.ok && c.value != null ? ` · ${formatUsd(c.value, 4)}` : ""}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 t-sm text-muted-foreground">
+                      هنوز API صرافی ثبت نشده — از صفحه «منابع API» اتصال اضافه کنید تا موجودی خودکار
+                      پر شود.
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -1298,6 +1357,7 @@ export default function App() {
           {/* ---- SOURCES ---- */}
           {page === "sources" ? (
             <div className="space-y-4">
+              <WalletConnections onChanged={() => void refreshWalletLive()} />
               <div className="grid gap-3 sm:grid-cols-3">
                 <Card>
                   <CardHeader>

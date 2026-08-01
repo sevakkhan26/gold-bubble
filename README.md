@@ -83,6 +83,10 @@ DATABASE_URL=postgresql+psycopg2://user:pass@localhost:5432/goldmarket
 | `GET /api/version` | `{ version, gitSha, buildTime }` |
 | `GET /api/debug` | Last refresh report per source (`source` / `ok` / `ms` / `error`) |
 | `GET /api/history?asset=usdt&exchange=nobitex&limit=200` | Time series for one price |
+| `GET/POST /api/wallet/connections` | List / create wallet balance connectors |
+| `PATCH/DELETE /api/wallet/connections/{id}` | Edit / remove one connector |
+| `POST /api/wallet/connections/{id}/test` | Call one connector now and report the result |
+| `GET /api/wallet/balances` | Live balance per wallet row, summed over enabled connectors |
 
 **`asset` values:** `usd`, `usdt`, `aed`, `gold18`, `gold24`, `ounce`, `paxgold`, `tethergold`  
 **`exchange` (optional):** `navasan`, `nobitex`, `wallex`, …
@@ -94,6 +98,35 @@ Table `price_points` — one row = one price at one moment:
 `id`, `ts`, `source`, `exchange`, `asset`, `buy`, `sell`, `value`, `estimated`
 
 On each refresh, every available field (USDT per exchange, Navasan USD/AED/gold, ounce, PAXG/XAUT) is inserted, so full history builds over time.
+
+## Wallet (کیف پول)
+
+The wallet page values your holdings — 18k/24k gold (domestic and foreign) plus
+USD, AED, USDT and cash — at live market rates.
+
+Quantities can be filled automatically from your own exchange accounts. Each
+**connection** (added in the *منابع API* page) is one endpoint:
+
+| Field | Example |
+|-------|---------|
+| Wallet row | `usdt` |
+| Method / URL | `GET https://api.exchange.tld/account/balances` |
+| Auth header | `Authorization: Token …` |
+| JSON path | `wallets[0].balance` · `result.balances.usdt.free` |
+| Multiplier | `0.1` (rial → toman), `0.001` (mg → gram), `1` |
+
+The path walks dotted keys and `[index]`; a bare name against a list matches the
+item whose value equals it (`balances.usdt.free` on `[{"currency":"usdt",…}]`).
+
+Credentials are stored in `wallet_connections` on the **server** and are never
+returned to the browser — the API replies with `••••••` and sending that mask back
+keeps the stored value. Several connections can feed one wallet row (they are
+summed), and anything you type in the wallet overrides the automatic number.
+Use read-only API keys.
+
+Table `wallet_connections`: `id`, `label`, `asset`, `enabled`, `method`, `url`,
+`headers_json`, `body`, `json_path`, `multiplier`, plus the last result
+(`last_value`, `last_ok`, `last_error`, `last_checked_at`).
 
 ## Tests
 
