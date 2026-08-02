@@ -4,8 +4,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-# Semver — bump on release / meaningful deploy.
-APP_VERSION = os.environ.get("APP_VERSION", "1.6.2")
+# Semver — bump on release / meaningful deploy. This constant is the source of
+# truth: a stale APP_VERSION in the server's .env used to win here and report an
+# old version for a freshly deployed SHA, which made deploys look like they had
+# not landed. The env var is now only a fallback.
+_CODE_VERSION = "1.6.3"
+APP_VERSION = _CODE_VERSION or os.environ.get("APP_VERSION", "0.0.0")
 
 # Prefer Docker build-arg (APP_GIT_SHA); fall back to git or "dev".
 APP_GIT_SHA = (os.environ.get("APP_GIT_SHA") or os.environ.get("GIT_SHA") or "dev").strip()

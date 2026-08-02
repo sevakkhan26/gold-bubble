@@ -1,6 +1,7 @@
 # Gold Market Live (Python + PostgreSQL)
 
-**Version:** `1.1.2` (semver in `app/version.py` + Docker `APP_VERSION` / `APP_GIT_SHA`)
+**Version:** semver lives in `app/version.py` (`_CODE_VERSION`) and is what
+`/api/version` reports; `APP_GIT_SHA` identifies the deployed commit.
 
 Full backend rewrite in **Python (FastAPI)** with **price history** for every asset/field stored in **PostgreSQL** (or SQLite for local dev).
 
@@ -177,7 +178,7 @@ python -m pytest -q
 | `PORT` | `8787` | HTTP port |
 | `REFRESH_SEC` | `60` | Minimum 15 |
 | `HTTP_TIMEOUT` | `8` | Provider request timeout (seconds) |
-| `APP_VERSION` | `1.0.0` | Semver exposed in API + UI |
+| `APP_VERSION` | _(ignored)_ | Kept for compatibility — `app/version.py` wins so a stale `.env` cannot mask a fresh deploy |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `OUTBOUND_HTTPS_PROXY` | _(empty)_ | Outbound proxy for providers |
 | `NO_PROXY` | `db,localhost,127.0.0.1` | Skip proxy for Postgres |
 
