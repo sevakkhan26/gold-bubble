@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ArbitrageBoard, type ArbRow } from "@/components/ArbitrageBoard";
 import { TradeConnectors } from "@/components/TradeConnectors";
 import { TradePanel } from "@/components/TradePanel";
 import { WalletConnections } from "@/components/WalletConnections";
@@ -268,6 +269,13 @@ export default function App() {
   const domAvg24 = avgOf(
     EXCHANGES.map((e) => pickSell(rates[e.id]?.shemsh24)).filter((v): v is number => v != null)
   );
+
+  /** Per-exchange buy/sell rows for the domestic arbitrage boards. */
+  const arbRows = (key: "gold18" | "shemsh24"): ArbRow[] =>
+    EXCHANGES.map((ex) => {
+      const pair = rates[ex.id]?.[key];
+      return { id: ex.id, fa: ex.fa, buy: pair?.buy ?? null, sell: pair?.sell ?? null };
+    });
 
   const marketUsd = pickSell(prices?.market?.usd) ?? avgUsdSell;
   const marketAed = pickSell(prices?.market?.aed);
@@ -856,41 +864,12 @@ export default function App() {
 
           {/* ---- 24k domestic arb ---- */}
           {page === "b24dom" && prices ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>آربیتراژ شمش ۲۴ داخلی</CardTitle>
-                <CardDescription>
-                  میانگین داخلی فروش: {formatToman(domAvg24)} تومان/کیلو
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="overflow-x-auto">
-                <table className="data-table">
-                  <thead>
-                    <tr className="border-b text-muted-foreground">
-                      <th className="py-2 text-right">صرافی</th>
-                      <th className="py-2 text-left">فروش ۲۴</th>
-                      <th className="py-2 text-left">Δ از میانگین</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {EXCHANGES.map((ex) => {
-                      const sell = pickSell(rates[ex.id]?.shemsh24);
-                      const pct =
-                        sell != null && domAvg24 ? ((sell - domAvg24) / domAvg24) * 100 : null;
-                      return (
-                        <tr key={ex.id} className="border-b border-border/50">
-                          <td className="py-2 text-right font-semibold">{ex.fa}</td>
-                          <td className="t-num py-2 text-left">{formatToman(sell)}</td>
-                          <td className={cn("t-num py-2 text-left", pctColor(pct))}>
-                            {pct != null ? `${pct.toFixed(2)}%` : "—"}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
+            <ArbitrageBoard
+              title="آربیتراژ شمش ۲۴ داخلی"
+              description={`خرید و فروش هر صرافی (تومان/کیلو) · میانگین فروش: ${formatToman(domAvg24)}`}
+              rows={arbRows("shemsh24")}
+              avgSell={domAvg24}
+            />
           ) : null}
 
           {/* ---- 24k foreign (live global sources) ---- */}
@@ -956,63 +935,35 @@ export default function App() {
 
           {/* ---- 18k domestic ---- */}
           {page === "b18dom" && prices ? (
-            <div className="space-y-4">
-            <TradePanel
-              asset="gold18dom"
-              unit="گرم"
-              quotes={Object.fromEntries(
-                EXCHANGES.map((ex) => {
-                  const pair = rates[ex.id]?.gold18;
-                  const perGram = (v: number | null | undefined) =>
-                    v == null ? null : v / 1000;
-                  return [
-                    ex.id,
-                    { buy: perGram(pickBuy(pair)), sell: perGram(pickSell(pair)) },
-                  ];
-                })
-              )}
-              holdings={Object.fromEntries(
-                Object.entries(walletLive?.byExchange || {}).map(([exId, assets]) => [
-                  exId,
-                  assets.gold18dom,
-                ])
-              )}
-              exchangeNames={Object.fromEntries(EXCHANGES.map((ex) => [ex.id, ex.fa]))}
-            />
-            <Card>
-              <CardHeader>
-                <CardTitle>آربیتراژ طلای ۱۸ داخلی</CardTitle>
-                <CardDescription>میانگین فروش: {formatToman(domAvg18)}</CardDescription>
-              </CardHeader>
-              <CardContent className="overflow-x-auto">
-                <table className="data-table">
-                  <thead>
-                    <tr className="border-b text-muted-foreground">
-                      <th className="py-2 text-right">صرافی</th>
-                      <th className="py-2 text-left">فروش ۱۸</th>
-                      <th className="py-2 text-left">Δ ٪</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {EXCHANGES.map((ex) => {
-                      const sell = pickSell(rates[ex.id]?.gold18);
-                      const pct =
-                        sell != null && domAvg18 ? ((sell - domAvg18) / domAvg18) * 100 : null;
-                      return (
-                        <tr key={ex.id} className="border-b border-border/50">
-                          <td className="py-2 text-right font-semibold">{ex.fa}</td>
-                          <td className="t-num py-2 text-left">{formatToman(sell)}</td>
-                          <td className={cn("t-num py-2 text-left", pctColor(pct))}>
-                            {pct != null ? `${pct.toFixed(2)}%` : "—"}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
-            </div>
+            <ArbitrageBoard
+              title="آربیتراژ طلای ۱۸ داخلی"
+              description={`خرید و فروش هر صرافی (تومان/کیلو) · میانگین فروش: ${formatToman(domAvg18)}`}
+              rows={arbRows("gold18")}
+              avgSell={domAvg18}
+            >
+              <TradePanel
+                asset="gold18dom"
+                unit="گرم"
+                quotes={Object.fromEntries(
+                  EXCHANGES.map((ex) => {
+                    const pair = rates[ex.id]?.gold18;
+                    const perGram = (v: number | null | undefined) =>
+                      v == null ? null : v / 1000;
+                    return [
+                      ex.id,
+                      { buy: perGram(pickBuy(pair)), sell: perGram(pickSell(pair)) },
+                    ];
+                  })
+                )}
+                holdings={Object.fromEntries(
+                  Object.entries(walletLive?.byExchange || {}).map(([exId, assets]) => [
+                    exId,
+                    assets.gold18dom,
+                  ])
+                )}
+                exchangeNames={Object.fromEntries(EXCHANGES.map((ex) => [ex.id, ex.fa]))}
+              />
+            </ArbitrageBoard>
           ) : null}
 
           {/* ---- 18k foreign (live global sources) ---- */}
