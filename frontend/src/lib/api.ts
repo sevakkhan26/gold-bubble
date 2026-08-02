@@ -244,6 +244,13 @@ export function deleteTradeConnector(id: number) {
   return sendJson<{ ok: boolean }>(`/trade/connectors/${id}`, "DELETE");
 }
 
+/** Reuse a working wallet connection's key for orders — copied server-side. */
+export function copyKeyFromWallet(connectorId: number, walletConnectionId: number) {
+  return sendJson<TradeConnector>(`/trade/connectors/${connectorId}/copy-key`, "POST", {
+    walletConnectionId,
+  });
+}
+
 /** Render the request an order would send. Nothing is transmitted. */
 export function previewOrder(payload: {
   connectorId: number;

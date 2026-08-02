@@ -4,12 +4,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  copyKeyFromWallet,
   createTradeConnector,
   deleteTradeConnector,
   fetchTradeConnectors,
+  fetchWalletConnections,
   updateTradeConnector,
   SECRET_MASK,
   type TradeConnector,
+  type WalletConnection,
 } from "@/lib/api";
 import { TRADE_PRESETS } from "@/lib/presets";
 import { cn } from "@/lib/utils";
@@ -115,14 +118,21 @@ export function TradeConnectors({
   onChanged?: () => void;
 }) {
   const [connectors, setConnectors] = useState<TradeConnector[]>([]);
+  const [walletConns, setWalletConns] = useState<WalletConnection[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<number | "new" | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [copied, setCopied] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
-      setConnectors((await fetchTradeConnectors()).connectors);
+      const [t, w] = await Promise.all([
+        fetchTradeConnectors(),
+        fetchWalletConnections().catch(() => ({ assets: [], connections: [] })),
+      ]);
+      setConnectors(t.connectors);
+      setWalletConns(w.connections.filter((c) => Object.keys(c.headers || {}).length > 0));
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطا در خواندن اتصال‌های معامله");
     }
@@ -160,6 +170,21 @@ export function TradeConnectors({
       onChanged?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "تغییر ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const applyWalletKey = async (c: TradeConnector, walletConnectionId: number) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await copyKeyFromWallet(c.id, walletConnectionId);
+      setCopied(c.id);
+      await load();
+      onChanged?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "کپی کلید ناموفق بود");
     } finally {
       setBusy(false);
     }
@@ -231,6 +256,32 @@ export function TradeConnectors({
                 <div className="mt-1 truncate t-sm text-muted-foreground" dir="ltr">
                   {c.method} {c.url}
                 </div>
+                {walletConns.length ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 t-sm">
+                    <span className="text-muted-foreground">کلید از اتصال کیف پول:</span>
+                    <select
+                      className="rounded-md border border-border bg-background px-2 py-1"
+                      defaultValue=""
+                      disabled={busy}
+                      onChange={(e) => {
+                        const id = Number(e.target.value);
+                        if (id) void applyWalletKey(c, id);
+                        e.target.value = "";
+                      }}
+                    >
+                      <option value="">— انتخاب کنید —</option>
+                      {walletConns.map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.label}
+                          {w.lastOk ? " ✓" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    {copied === c.id ? (
+                      <span className="text-buy">کلید کپی شد</span>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               <div className="flex items-center gap-1">
                 <Button

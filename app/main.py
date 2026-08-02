@@ -393,6 +393,10 @@ class OrderIn(BaseModel):
     confirm: bool = False
 
 
+class CopyKeyIn(BaseModel):
+    walletConnectionId: int
+
+
 def _check_trade_method(method: str) -> str:
     m = (method or "POST").upper()
     if m not in {"GET", "POST", "PUT", "DELETE"}:
@@ -472,6 +476,28 @@ def delete_connector(conn_id: int):
         s.delete(conn)
         s.commit()
     return {"ok": True, "id": conn_id}
+
+
+@app.post("/api/trade/connectors/{conn_id}/copy-key")
+def copy_key_from_wallet(conn_id: int, payload: CopyKeyIn):
+    """Reuse the credential of a wallet connection that is already working.
+
+    Copied inside the server — the secret is never sent to the browser in either
+    direction. Useful when balances authenticate fine but the order connector
+    holds a stale token.
+    """
+    with SessionLocal() as s:
+        conn = _get_connector(s, conn_id)
+        source = s.get(WalletConnection, payload.walletConnectionId)
+        if source is None:
+            raise HTTPException(status_code=404, detail="wallet connection not found")
+        if not wallet.parse_headers(source.headers_json):
+            raise HTTPException(
+                status_code=422, detail="that wallet connection has no auth header to copy"
+            )
+        conn.headers_json = source.headers_json
+        s.commit()
+        return trade.public_connector(conn)
 
 
 @app.post("/api/trade/preview")

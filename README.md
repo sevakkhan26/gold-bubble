@@ -163,6 +163,13 @@ Placeholders `{{side}}`, `{{qty}}`, `{{price}}`, `{{total}}`, `{{asset}}` and
 `{{exchange}}` are substituted in both URL and body; a placeholder with no value
 (e.g. `{{price}}` on a market order) is a hard error rather than a blank.
 
+If the balance connection authenticates but orders come back with an expired
+token, the connector row has a *کلید از اتصال کیف پول* picker: the working
+credential is copied server-side, so the secret never travels through the
+browser. Note Wallex answers `invalid API key format` for any key it does not
+recognise — a session token pasted from the web app authenticates until it
+expires, a real API key does not.
+
 **Safety.** A new connector is created in **dry-run**: the request is rendered and
 shown but never transmitted, until you press *فعال‌سازی ارسال*. `POST
 /api/trade/orders` also refuses anything without `confirm: true`, a valid side,

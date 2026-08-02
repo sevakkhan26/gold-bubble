@@ -340,6 +340,66 @@ def test_patch_keeps_secret_when_mask_sent():
         client.delete(f"/api/trade/connectors/{conn['id']}")
 
 
+def test_copy_key_from_wallet_connection():
+    """A working balance key can be reused for orders without retyping it."""
+    with _client() as client:
+        conn = _make_connector(client, headers={"x-api-key": "stale-token"})
+        source = client.post(
+            "/api/wallet/connections",
+            json={
+                "label": "والکس — تتر",
+                "asset": "usdt",
+                "exchange": "wallex",
+                "url": "https://api.wallex.ir/v1/account/balances",
+                "jsonPath": "result.balances.USDT.value",
+                "headers": {"x-api-key": "the-working-key"},
+            },
+        ).json()
+
+        out = client.post(
+            f"/api/trade/connectors/{conn['id']}/copy-key",
+            json={"walletConnectionId": source["id"]},
+        )
+        assert out.status_code == 200
+        assert "the-working-key" not in out.text  # still masked on the way out
+
+        from app.db import SessionLocal, TradeConnector
+
+        with SessionLocal() as s:
+            row = s.get(TradeConnector, conn["id"])
+            assert wallet.parse_headers(row.headers_json)["x-api-key"] == "the-working-key"
+
+        client.delete(f"/api/wallet/connections/{source['id']}")
+        client.delete(f"/api/trade/connectors/{conn['id']}")
+
+
+def test_copy_key_rejects_unknown_or_keyless_source():
+    with _client() as client:
+        conn = _make_connector(client)
+        missing = client.post(
+            f"/api/trade/connectors/{conn['id']}/copy-key", json={"walletConnectionId": 999999}
+        )
+        assert missing.status_code == 404
+
+        keyless = client.post(
+            "/api/wallet/connections",
+            json={
+                "label": "no auth",
+                "asset": "usdt",
+                "url": "https://open.test/b",
+                "jsonPath": "v",
+            },
+        ).json()
+        r = client.post(
+            f"/api/trade/connectors/{conn['id']}/copy-key",
+            json={"walletConnectionId": keyless["id"]},
+        )
+        assert r.status_code == 422
+
+        client.delete(f"/api/wallet/connections/{keyless['id']}")
+        client.delete(f"/api/trade/connectors/{conn['id']}")
+
+
 def test_missing_connector_is_404():
     with _client() as client:
         assert client.patch("/api/trade/connectors/999999", json={"label": "x"}).status_code == 404
