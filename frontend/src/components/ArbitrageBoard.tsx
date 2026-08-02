@@ -9,7 +9,11 @@ export type ArbRow = {
   sell: number | null;
 };
 
-/** Highest bid = where you sell best; lowest ask = where you buy cheapest. */
+/**
+ * Best is from the user's side of the trade: buying wants the cheapest number,
+ * selling wants the dearest. You buy at a venue's ask (its فروش column) and sell
+ * at its bid (its خرید column).
+ */
 function bestOf(rows: ArbRow[], key: "buy" | "sell", pick: "max" | "min") {
   const withValue = rows.filter((r) => r[key] != null) as (ArbRow & Record<typeof key, number>)[];
   if (!withValue.length) return null;
@@ -81,26 +85,24 @@ export function ArbitrageBoard({
   /** Rendered between the best-quote cards and the table (e.g. the trade panel). */
   children?: React.ReactNode;
 }) {
-  const bestBid = bestOf(rows, "buy", "max"); // most you can get when selling
-  const bestAsk = bestOf(rows, "sell", "min"); // least you pay when buying
-  const spread =
-    bestBid && bestAsk ? bestBid.value - bestAsk.value : null;
-  const spreadPct =
-    spread != null && bestAsk ? (spread / bestAsk.value) * 100 : null;
+  const bestBuy = bestOf(rows, "sell", "min"); // least you pay when buying
+  const bestSell = bestOf(rows, "buy", "max"); // most you get when selling
+  const spread = bestBuy && bestSell ? bestSell.value - bestBuy.value : null;
+  const spreadPct = spread != null && bestBuy ? (spread / bestBuy.value) * 100 : null;
 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
         <BestCard
-          title="بهترین قیمت خرید (بالاترین)"
-          note="گران‌ترین جا برای فروش شما"
-          best={bestBid}
+          title="بهترین قیمت خرید (پایین‌ترین)"
+          note="ارزان‌ترین جا برای خرید شما — از ستون فروش صرافی"
+          best={bestBuy}
           tone="buy"
         />
         <BestCard
-          title="بهترین قیمت فروش (پایین‌ترین)"
-          note="ارزان‌ترین جا برای خرید شما"
-          best={bestAsk}
+          title="بهترین قیمت فروش (بالاترین)"
+          note="گران‌ترین جا برای فروش شما — از ستون خرید صرافی"
+          best={bestSell}
           tone="sell"
         />
         <div className="stat-card">
@@ -149,28 +151,37 @@ export function ArbitrageBoard({
                   r.buy != null && r.sell != null ? r.sell - r.buy : null;
                 const pct =
                   r.sell != null && avgSell ? ((r.sell - avgSell) / avgSell) * 100 : null;
-                const isBestBid = bestBid?.distinct === true && r.buy === bestBid.value;
-                const isBestAsk = bestAsk?.distinct === true && r.sell === bestAsk.value;
+                // ★ on the venue's bid = best place to sell; on its ask = best place to buy.
+                const isBestSell = bestSell?.distinct === true && r.buy === bestSell.value;
+                const isBestBuy = bestBuy?.distinct === true && r.sell === bestBuy.value;
                 return (
                   <tr key={r.id} className="border-b border-border/50">
                     <td className="py-2 text-right font-semibold">{r.fa}</td>
                     <td
                       className={cn(
                         "t-num py-2 text-left text-buy",
-                        isBestBid && "font-bold"
+                        isBestSell && "font-bold"
                       )}
                     >
                       {formatToman(r.buy)}
-                      {isBestBid ? <span className="mr-1 t-sm">★</span> : null}
+                      {isBestSell ? (
+                        <span className="mr-1 t-sm" title="بهترین جا برای فروش شما">
+                          ★
+                        </span>
+                      ) : null}
                     </td>
                     <td
                       className={cn(
                         "t-num py-2 text-left text-sell",
-                        isBestAsk && "font-bold"
+                        isBestBuy && "font-bold"
                       )}
                     >
                       {formatToman(r.sell)}
-                      {isBestAsk ? <span className="mr-1 t-sm">★</span> : null}
+                      {isBestBuy ? (
+                        <span className="mr-1 t-sm" title="بهترین جا برای خرید شما">
+                          ★
+                        </span>
+                      ) : null}
                     </td>
                     <td className="t-num py-2 text-left text-muted-foreground">
                       {spreadRow != null ? formatToman(spreadRow) : "—"}
