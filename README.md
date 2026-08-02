@@ -124,6 +124,15 @@ Quantities can be filled automatically from your own exchange accounts. Each
 The path walks dotted keys and `[index]`; a bare name against a list matches the
 item whose value equals it (`balances.usdt.free` on `[{"currency":"usdt",…}]`).
 
+**Wallex preset.** The forms have one-click presets for Wallex, so only the API
+key has to be typed (base `https://api.wallex.ir`, header `x-api-key`):
+
+| | Balance | Order |
+|---|---|---|
+| Endpoint | `GET /v1/account/balances` | `POST /v1/account/orders` |
+| Path / body | `result.balances.USDT.value` (or `TMN`) | `{"symbol":"USDTTMN","type":"LIMIT","side":"{{side}}","price":"{{price}}","quantity":"{{qty}}"}` |
+| Sides | — | `BUY` / `SELL` |
+
 Credentials are stored in `wallet_connections` on the **server** and are never
 returned to the browser — the API replies with `••••••` and sending that mask back
 keeps the stored value. Several connections can feed one wallet row (they are

@@ -12,6 +12,7 @@ import {
   SECRET_MASK,
   type WalletConnection,
 } from "@/lib/api";
+import { WALLET_PRESETS } from "@/lib/presets";
 import { cn } from "@/lib/utils";
 
 /** Wallet rows a connection can feed — labels mirror the کیف پول page. */
@@ -337,6 +338,20 @@ function ConnectionForm({
 }) {
   return (
     <div className="grid gap-3 border-t border-border p-3 md:grid-cols-2">
+      <div className="flex flex-wrap items-center gap-2 md:col-span-2">
+        <span className="t-sm text-muted-foreground">پرکردن خودکار:</span>
+        {WALLET_PRESETS.map((p) => (
+          <Button
+            key={p.id}
+            variant="ghost"
+            size="sm"
+            onClick={() => set({ ...p.values, headerValue: "" })}
+          >
+            {p.label}
+          </Button>
+        ))}
+        <span className="t-sm text-muted-foreground">— فقط کلید API را خودتان بزنید</span>
+      </div>
       <Field label="نام اتصال">
         <input
           className={inputClass}

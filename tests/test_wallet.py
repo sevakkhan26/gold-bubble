@@ -45,6 +45,26 @@ def test_extract_path_matches_list_item_by_value():
     assert wallet.extract_path(payload, "balances.usdt.value") == 30
 
 
+def test_extract_path_wallex_balances_shape():
+    """GET https://api.wallex.ir/v1/account/balances — the shape the preset targets."""
+    payload = {
+        "success": True,
+        "message": "عملیات با موفقیت انجام شد",
+        "result": {
+            "balances": {
+                "TMN": {"asset": "TMN", "faName": "تومان", "fiat": True,
+                        "value": "10000000", "locked": "0"},
+                "USDT": {"asset": "USDT", "faName": "تتر", "fiat": False,
+                         "value": "10.00000000", "locked": "0.00000000"},
+            }
+        },
+    }
+    assert wallet.to_number(wallet.extract_path(payload, "result.balances.USDT.value")) == 10.0
+    assert (
+        wallet.to_number(wallet.extract_path(payload, "result.balances.TMN.value")) == 10_000_000
+    )
+
+
 def test_extract_path_empty_returns_whole_payload():
     assert wallet.extract_path(42, "") == 42
 

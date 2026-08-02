@@ -474,6 +474,24 @@ export default function App() {
                 ))}
               </div>
 
+              <TradePanel
+                asset="usdt"
+                unit="تتر"
+                quotes={Object.fromEntries(
+                  EXCHANGES.map((ex) => {
+                    const pair = prices.usdtByExchange?.[ex.id];
+                    return [ex.id, { buy: pickBuy(pair), sell: pickSell(pair) }];
+                  })
+                )}
+                holdings={Object.fromEntries(
+                  Object.entries(walletLive?.byExchange || {}).map(([exId, assets]) => [
+                    exId,
+                    assets.usdt,
+                  ])
+                )}
+                exchangeNames={Object.fromEntries(EXCHANGES.map((ex) => [ex.id, ex.fa]))}
+              />
+
               <Card className="stat-card border-border/80 shadow-md">
                 <CardHeader>
                   <CardTitle>قیمت به تومان — همه صرافی‌ها</CardTitle>

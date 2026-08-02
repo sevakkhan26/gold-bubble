@@ -69,6 +69,31 @@ def test_build_request_renders_url_and_body():
     assert req["method"] == "POST"
 
 
+def test_build_request_matches_wallex_order_body():
+    """POST https://api.wallex.ir/v1/account/orders — the shape the preset sends."""
+    conn = FakeConnector(
+        exchange="wallex",
+        asset="usdt",
+        url="https://api.wallex.ir/v1/account/orders",
+        body_template=(
+            '{"symbol":"USDTTMN","type":"LIMIT","side":"{{side}}",'
+            '"price":"{{price}}","quantity":"{{qty}}"}'
+        ),
+        buy_value="BUY",
+        sell_value="SELL",
+    )
+    req = trade.build_request(conn, side="sell", qty=12.5, price=121000)
+    assert req["url"] == "https://api.wallex.ir/v1/account/orders"
+    assert req["body"] == (
+        '{"symbol":"USDTTMN","type":"LIMIT","side":"SELL","price":"121000","quantity":"12.5"}'
+    )
+    # Wallex wants price/quantity as JSON strings — the template quotes them.
+    import json
+
+    parsed = json.loads(req["body"])
+    assert parsed["side"] == "SELL" and parsed["quantity"] == "12.5"
+
+
 def test_build_request_rejects_non_positive_qty():
     with pytest.raises(ValueError):
         trade.build_request(FakeConnector(), side="buy", qty=0, price=1)

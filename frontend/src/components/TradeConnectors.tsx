@@ -11,6 +11,7 @@ import {
   SECRET_MASK,
   type TradeConnector,
 } from "@/lib/api";
+import { TRADE_PRESETS } from "@/lib/presets";
 import { cn } from "@/lib/utils";
 
 const ASSET_LABELS: Record<string, string> = {
@@ -320,6 +321,20 @@ function ConnectorForm({
 }) {
   return (
     <div className="grid gap-3 border-t border-border p-3 md:grid-cols-2">
+      <div className="flex flex-wrap items-center gap-2 md:col-span-2">
+        <span className="t-sm text-muted-foreground">پرکردن خودکار:</span>
+        {TRADE_PRESETS.map((p) => (
+          <Button
+            key={p.id}
+            variant="ghost"
+            size="sm"
+            onClick={() => set({ ...p.values, headerValue: "" })}
+          >
+            {p.label}
+          </Button>
+        ))}
+        <span className="t-sm text-muted-foreground">— فقط کلید API را خودتان بزنید</span>
+      </div>
       <Field label="نام اتصال">
         <input
           className={inputClass}
