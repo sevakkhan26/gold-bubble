@@ -108,9 +108,10 @@ def send_order(conn, *, side: str, qty: float, price: float | None) -> dict:
                 r = client.request(req["method"], req["url"], content=body.encode("utf-8"))
         text = r.text[:2000]
         ok = 200 <= r.status_code < 300
+        detail = " ".join((r.text or "").split())[:200]
         return {
             "status": "sent" if ok else "failed",
-            "error": None if ok else f"HTTP {r.status_code}",
+            "error": None if ok else f"HTTP {r.status_code} — {detail or 'بدون پاسخ'}",
             "httpStatus": r.status_code,
             "request": req,
             "response": text,

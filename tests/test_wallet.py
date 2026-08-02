@@ -134,6 +134,8 @@ def test_validate_url_rejects_non_http():
 
 def test_fetch_balance_applies_multiplier(monkeypatch):
     class FakeResp:
+        status_code = 200
+
         def raise_for_status(self):
             return None
 
@@ -169,8 +171,41 @@ def test_fetch_balance_reports_error_without_raising(monkeypatch):
     assert out["ok"] is False and out["value"] is None and "connect failed" in out["error"]
 
 
+def test_fetch_balance_surfaces_exchange_error_body(monkeypatch):
+    """A bare '401' says nothing — the exchange's own message must come through."""
+
+    class FakeResp:
+        status_code = 401
+        text = '{"code":1201,"message":"invalid API key format","success":false}'
+
+    class FakeClient:
+        def __init__(self, *a, **kw):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def get(self, url):
+            return FakeResp()
+
+    monkeypatch.setattr(wallet.httpx, "Client", FakeClient)
+    out = wallet.fetch_balance(FakeConn(json_path="result.balances.USDT.value"))
+    assert out["ok"] is False
+    assert "HTTP 401" in out["error"] and "invalid API key format" in out["error"]
+
+
+def test_merge_headers_strips_pasted_whitespace():
+    merged = wallet.merge_headers(None, {" x-api-key ": "  my-key\n"})
+    assert wallet.parse_headers(merged) == {"x-api-key": "my-key"}
+
+
 def test_fetch_balance_flags_non_numeric(monkeypatch):
     class FakeResp:
+        status_code = 200
+
         def raise_for_status(self):
             return None
 

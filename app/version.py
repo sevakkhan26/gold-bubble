@@ -8,7 +8,7 @@ from pathlib import Path
 # truth: a stale APP_VERSION in the server's .env used to win here and report an
 # old version for a freshly deployed SHA, which made deploys look like they had
 # not landed. The env var is now only a fallback.
-_CODE_VERSION = "1.7.0"
+_CODE_VERSION = "1.7.1"
 APP_VERSION = _CODE_VERSION or os.environ.get("APP_VERSION", "0.0.0")
 
 # Prefer Docker build-arg (APP_GIT_SHA); fall back to git or "dev".

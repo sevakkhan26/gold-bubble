@@ -123,8 +123,10 @@ def merge_headers(stored: str | None, incoming: dict[str, str] | None) -> str:
     if incoming is None:
         return stored or "{}"
     old = parse_headers(stored)
+    # Keys pasted from a dashboard often carry a trailing newline or space, which
+    # exchanges reject as a malformed key.
     merged = {
-        k: (old.get(k, "") if v == SECRET_MASK else str(v))
+        k.strip(): (old.get(k, "") if v == SECRET_MASK else str(v).strip())
         for k, v in incoming.items()
     }
     return json.dumps(merged, ensure_ascii=False)
@@ -158,7 +160,16 @@ def fetch_balance(conn) -> dict:
                     r = client.post(url)
             else:
                 r = client.get(url)
-        r.raise_for_status()
+        if not 200 <= r.status_code < 300:
+            # The exchange's own message is the only thing that explains a 401
+            # ("invalid API key format" vs a key with the wrong permissions).
+            detail = " ".join((r.text or "").split())[:200]
+            return {
+                "ok": False,
+                "value": None,
+                "ms": int((time.time() - started) * 1000),
+                "error": f"HTTP {r.status_code} — {detail or 'بدون پاسخ'}",
+            }
         payload = r.json()
         raw = extract_path(payload, conn.json_path)
         value = to_number(raw)
