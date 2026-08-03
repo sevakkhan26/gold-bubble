@@ -26,11 +26,11 @@ import {
   gold18FromKg,
   gold24FromKg,
   mapLiveModelToRates,
-
+  normalizeSettings,
   pickSell,
   type Settings,
 } from "@/lib/market";
-import { cn, formatToman, formatUsd, timeAgo } from "@/lib/utils";
+import { cn, formatToman, formatUsd } from "@/lib/utils";
 
 type PageId =
   | "market"
@@ -135,6 +135,16 @@ const WALLET_ASSETS: {
 /** طلاهای داخلی نرخ دستی می‌پذیرند (خالی = نرخ زنده بازار). */
 const MANUAL_RATE_ASSETS: WalletAssetId[] = ["gold18dom", "gold24dom"];
 
+/** How stale the backend's snapshot is, straight from /api/prices. */
+function dataAge(ageMs: number | null | undefined): string {
+  if (ageMs == null) return "—";
+  const sec = Math.max(0, Math.round(ageMs / 1000));
+  if (sec < 60) return `${sec} ثانیه`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} دقیقه`;
+  return `${Math.floor(min / 60)} ساعت`;
+}
+
 /** کیف پول قدیمی یک ردیف طلا داشت — به نسخه داخلی منتقل می‌شود. */
 function migrateWallet(raw: Record<string, number>): Record<string, number> {
   const w = { ...raw };
@@ -146,7 +156,19 @@ function migrateWallet(raw: Record<string, number>): Record<string, number> {
 }
 
 export default function App() {
-  const { prices, health, report, error, loading, updatedAt, refresh } = usePrices();
+  const [settings, setSettings] = useState<Settings>(() => {
+    try {
+      const raw = localStorage.getItem("gb-settings");
+      return raw
+        ? normalizeSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(raw) })
+        : DEFAULT_SETTINGS;
+    } catch {
+      return DEFAULT_SETTINGS;
+    }
+  });
+  const { prices, health, report, error, loading, refresh } = usePrices(
+    settings.refreshSec * 1000
+  );
   const {
     data: walletLive,
     error: walletLiveError,
@@ -173,14 +195,6 @@ export default function App() {
     }
     return () => window.removeEventListener("popstate", onPop);
   }, []);
-  const [settings, setSettings] = useState<Settings>(() => {
-    try {
-      const raw = localStorage.getItem("gb-settings");
-      return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
-    } catch {
-      return DEFAULT_SETTINGS;
-    }
-  });
   const [wallet, setWallet] = useState<Record<string, number>>(() => {
     try {
       return migrateWallet(JSON.parse(localStorage.getItem("gb-wallet") || "{}"));
@@ -407,8 +421,9 @@ export default function App() {
             {prices?.stale ? <Badge variant="est">آخرین معتبر</Badge> : null}
             {error && !prices ? <Badge variant="danger">خطا</Badge> : null}
             {!prices && !error && loading ? <Badge variant="muted">بارگذاری</Badge> : null}
+            {/* Age of the data itself, not of the last poll — a frozen feed shows. */}
             <span className="t-sm text-muted-foreground">
-              بروزرسانی: {timeAgo(updatedAt)}
+              سن داده: {dataAge(prices?.ageMs)}
             </span>
             <Button size="sm" onClick={() => void onRefresh()} disabled={busy}>
               <RefreshCw className={cn("size-3.5", busy && "animate-spin")} />

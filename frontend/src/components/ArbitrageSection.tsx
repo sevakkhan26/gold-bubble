@@ -73,13 +73,18 @@ export function ArbitrageSection({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Callers pass an array literal, so depend on its contents rather than its
+  // identity — keying on the array itself refetched on every render, forever.
+  const assetsKey = assets.join("|");
+
   const load = useCallback(async () => {
+    const wanted = assetsKey.split("|");
     try {
       const [c, o] = await Promise.all([
         fetchTradeConnectors(),
-        fetchTradeOrders({ asset: assets[0], limit: 5 }).catch(() => ({ count: 0, orders: [] })),
+        fetchTradeOrders({ asset: wanted[0], limit: 5 }).catch(() => ({ count: 0, orders: [] })),
       ]);
-      const mine = c.connectors.filter((x) => assets.includes(x.asset));
+      const mine = c.connectors.filter((x) => wanted.includes(x.asset));
       setConnectors(mine);
       setOrders(o.orders);
       setBuyId((cur) => (cur && mine.some((m) => m.id === cur) ? cur : mine[0]?.id ?? null));
@@ -89,7 +94,7 @@ export function ArbitrageSection({
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطا در خواندن اتصال‌های معامله");
     }
-  }, [assets]);
+  }, [assetsKey]);
 
   useEffect(() => {
     void load();

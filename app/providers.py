@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout, as_completed
 from datetime import datetime, timezone
 from typing import Any, Callable
 
@@ -476,20 +476,22 @@ def _sources(keys: dict) -> dict[str, SourceSpec]:
     }
 
 
-def run_source(name: str, keys: dict, overrides: dict, timeout: float = 10.0) -> dict:
+def run_source(
+    name: str, keys: dict, overrides: dict, timeout: float = 10.0, retries: int = 1
+) -> dict:
     label, url, mapper = _sources(keys)[name]
     url = overrides.get(name, url)
     safe = re.sub(r"(api_key|key)=[^&]+", r"\1=***", url)
     try:
         if name == "navasan_web":
-            text, ms = fetch_text(url, timeout=timeout)
+            text, ms = fetch_text(url, timeout=timeout, retries=retries)
             # cache-bust sometimes helps behind CDN
             if "lastrates" not in text and "?" not in url:
-                text, ms = fetch_text(f"{url}?_={int(time.time())}", timeout=timeout)
+                text, ms = fetch_text(f"{url}?_={int(time.time())}", timeout=timeout, retries=retries)
             j = parse_navasan_initrates(text)
             value = mapper(j)
         else:
-            j, ms = fetch_json(url, timeout=timeout)
+            j, ms = fetch_json(url, timeout=timeout, retries=retries)
             value = mapper(j)
         return {
             "source": name,
@@ -516,8 +518,14 @@ def build_model(
     brsapi_key: str = "",
     overrides: dict | None = None,
     timeout: float = 10.0,
+    budget_sec: float | None = None,
 ) -> dict:
-    """Assemble normalized model + per-source report. Never raises."""
+    """Assemble normalized model + per-source report. Never raises.
+
+    `budget_sec` caps the whole fan-out so one hanging provider cannot stretch a
+    refresh past its interval — stragglers are reported as skipped and their
+    previous values survive the merge upstream.
+    """
     overrides = overrides or {}
     keys = {"navasan": navasan_key, "brsapi": brsapi_key}
 
@@ -555,17 +563,37 @@ def build_model(
         or _os.environ.get("HTTP_PROXY")
         or _os.environ.get("OUTBOUND_HTTPS_PROXY")
     )
-    workers = 1 if proxy_on else min(4, len(wanted))
-    if workers == 1:
-        for n in wanted:
-            results.append(run_source(n, keys, overrides, timeout))
-    else:
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            futs = {
-                pool.submit(run_source, n, keys, overrides, timeout): n for n in wanted
-            }
-            for fut in as_completed(futs):
+    # One worker behind a proxy meant fifteen sources ran nose-to-tail: a single
+    # bad cycle took minutes and the board froze on last-good values. Keep the
+    # fan-out modest through a proxy, but never serial.
+    workers = 3 if proxy_on else min(6, len(wanted))
+    deadline = time.time() + budget_sec if budget_sec else None
+
+    def _skipped(n: str) -> dict:
+        label, url, _ = _sources(keys)[n]
+        return {
+            "source": n,
+            "label": label,
+            "url": re.sub(r"(api_key|key)=[^&]+", r"\1=***", overrides.get(n, url)),
+            "ok": False,
+            "ms": None,
+            "value": None,
+            "error": "skipped — refresh budget spent",
+        }
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futs = {pool.submit(run_source, n, keys, overrides, timeout): n for n in wanted}
+        pending = set(futs)
+        try:
+            remaining = None if deadline is None else max(0.1, deadline - time.time())
+            for fut in as_completed(futs, timeout=remaining):
+                pending.discard(fut)
                 results.append(fut.result())
+        except FuturesTimeout:
+            # Whatever has not landed by the deadline keeps its last-good value.
+            for fut in pending:
+                fut.cancel()
+                results.append(_skipped(futs[fut]))
 
     by = {r["source"]: r for r in results}
     ts = _now_iso()

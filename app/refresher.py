@@ -122,7 +122,14 @@ class Refresher:
         self._thread: threading.Thread | None = None
 
     def refresh_once(self) -> dict:
-        out = build_model(config.NAVASAN_API_KEY, config.BRSAPI_KEY, config.OVERRIDES, config.HTTP_TIMEOUT)
+        # Never let one cycle eat the next one's slot.
+        out = build_model(
+            config.NAVASAN_API_KEY,
+            config.BRSAPI_KEY,
+            config.OVERRIDES,
+            config.HTTP_TIMEOUT,
+            budget_sec=max(5.0, config.REFRESH_SEC * 0.8),
+        )
         fresh, report = out["model"], out["report"]
         with self._lock:
             self.latest = merge_model(self.latest, fresh)
@@ -141,15 +148,21 @@ class Refresher:
         return self.latest  # type: ignore[return-value]
 
     def _loop(self) -> None:
+        # Fixed cadence: schedule from when a cycle *started*, so a slow fetch
+        # shortens the following wait instead of adding to it. Waiting after the
+        # fetch made the real interval REFRESH_SEC + fetch time — minutes, once
+        # providers began timing out, which read as a frozen board.
         # lifespan already ran refresh_once(); wait first to avoid double-hit on start.
+        next_at = time.time() + config.REFRESH_SEC
         while not self._stop.is_set():
-            self._stop.wait(config.REFRESH_SEC)
-            if self._stop.is_set():
+            if self._stop.wait(max(0.0, next_at - time.time())):
                 break
+            started = time.time()
             try:
                 self.refresh_once()
             except Exception as e:  # noqa: BLE001
                 print(f"[refresh] unexpected: {e}")
+            next_at = max(started + config.REFRESH_SEC, time.time() + 1.0)
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():

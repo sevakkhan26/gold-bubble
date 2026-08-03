@@ -47,8 +47,15 @@ export const DEFAULT_SETTINGS: Settings = {
   aedPeg: 3.6725,
   purity: 0.75,
   troyOunce: 31.103,
-  refreshSec: 15,
+  // Poll faster than the backend refreshes (15s), otherwise the two tick in
+  // lockstep and every read lands at the same data age — a board that looks stuck.
+  refreshSec: 5,
 };
+
+/** 15s was the old default and aliases with the backend cycle; move those users on. */
+export function normalizeSettings(s: Settings): Settings {
+  return s.refreshSec === 15 ? { ...s, refreshSec: DEFAULT_SETTINGS.refreshSec } : s;
+}
 
 export function mapLiveModelToRates(model: PriceModel): {
   rates: Record<string, RateEntry>;

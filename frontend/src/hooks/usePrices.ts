@@ -9,9 +9,10 @@ import {
   type SourceReport,
 } from "@/lib/api";
 
-const REFRESH_MS = 15_000;
+const DEFAULT_REFRESH_MS = 5_000;
 
-export function usePrices() {
+/** @param refreshMs how often to re-read the API (the تنظیمات value drives this). */
+export function usePrices(refreshMs: number = DEFAULT_REFRESH_MS) {
   const [prices, setPrices] = useState<PriceModel | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
   const [report, setReport] = useState<SourceReport[]>([]);
@@ -41,9 +42,9 @@ export function usePrices() {
 
   useEffect(() => {
     void refresh();
-    const id = setInterval(() => void refresh(), REFRESH_MS);
+    const id = setInterval(() => void refresh(), Math.max(1000, refreshMs));
     return () => clearInterval(id);
-  }, [refresh]);
+  }, [refresh, refreshMs]);
 
   return { prices, health, report, error, loading, updatedAt, refresh };
 }

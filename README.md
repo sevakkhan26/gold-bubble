@@ -221,7 +221,7 @@ python -m pytest -q
 | `NAVASAN_API_KEY` | _(empty)_ | Required for live domestic USD/AED/gold |
 | `BRSAPI_KEY` | _(empty)_ | Optional domestic fallback |
 | `PORT` | `8787` | HTTP port |
-| `REFRESH_SEC` | `60` | Minimum 15 |
+| `REFRESH_SEC` | `15` | Minimum 15. One fan-out is budgeted to 80% of this, so a hanging provider is dropped rather than pushing the next cycle late |
 | `HTTP_TIMEOUT` | `8` | Provider request timeout (seconds) |
 | `APP_VERSION` | _(ignored)_ | Kept for compatibility — `app/version.py` wins so a stale `.env` cannot mask a fresh deploy |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `OUTBOUND_HTTPS_PROXY` | _(empty)_ | Outbound proxy for providers |
