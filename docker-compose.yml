@@ -51,8 +51,10 @@ services:
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-gold}:${POSTGRES_PASSWORD:-goldpass}@db:5432/${POSTGRES_DB:-goldmarket}
       NAVASAN_API_KEY: ${NAVASAN_API_KEY:-}
       BRSAPI_KEY: ${BRSAPI_KEY:-}
-      REFRESH_SEC: ${REFRESH_SEC:-60}
-      HTTP_TIMEOUT: ${HTTP_TIMEOUT:-8}
+      # Compose always sets these, so app defaults never apply here — keep them
+      # in step with app/config.py or the container silently runs the old values.
+      REFRESH_SEC: ${REFRESH_SEC:-15}
+      HTTP_TIMEOUT: ${HTTP_TIMEOUT:-30}
       PORT: "8787"
       APP_VERSION: ${APP_VERSION:-1.1.1}
       APP_GIT_SHA: ${GIT_SHA:-unknown}
