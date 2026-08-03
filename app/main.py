@@ -397,6 +397,16 @@ class CopyKeyIn(BaseModel):
     walletConnectionId: int
 
 
+class ArbitrageIn(BaseModel):
+    """Two legs of one arbitrage: buy on one venue, sell on the other."""
+    buyConnectorId: int
+    sellConnectorId: int
+    qty: float
+    buyPrice: float | None = None
+    sellPrice: float | None = None
+    confirm: bool = False
+
+
 def _check_trade_method(method: str) -> str:
     m = (method or "POST").upper()
     if m not in {"GET", "POST", "PUT", "DELETE"}:
@@ -529,26 +539,75 @@ def place_order(payload: OrderIn):
         if not conn.enabled:
             raise HTTPException(status_code=422, detail="connector is disabled")
 
-        result = trade.send_order(conn, side=payload.side, qty=payload.qty, price=payload.price)
-        req = result.get("request") or {}
-        order = TradeOrder(
-            connector_id=conn.id,
-            exchange=conn.exchange,
-            asset=conn.asset,
-            side=payload.side,
-            qty=payload.qty,
-            price=payload.price,
-            total=(payload.qty * payload.price) if payload.price is not None else None,
-            status=result["status"],
-            http_status=result.get("httpStatus"),
-            request_url=req.get("url"),
-            request_body=req.get("body"),
-            response_text=result.get("response"),
-            error=result.get("error"),
-        )
-        s.add(order)
+        out = _place_and_record(s, conn, payload.side, payload.qty, payload.price)
         s.commit()
-        return {**result, "order": trade.public_order(order)}
+        return out
+
+
+def _place_and_record(s, conn: TradeConnector, side: str, qty: float, price: float | None) -> dict:
+    result = trade.send_order(conn, side=side, qty=qty, price=price)
+    req = result.get("request") or {}
+    order = TradeOrder(
+        connector_id=conn.id,
+        exchange=conn.exchange,
+        asset=conn.asset,
+        side=side,
+        qty=qty,
+        price=price,
+        total=(qty * price) if price is not None else None,
+        status=result["status"],
+        http_status=result.get("httpStatus"),
+        request_url=req.get("url"),
+        request_body=req.get("body"),
+        response_text=result.get("response"),
+        error=result.get("error"),
+    )
+    s.add(order)
+    s.flush()
+    return {**result, "order": trade.public_order(order)}
+
+
+@app.post("/api/trade/arbitrage", status_code=201)
+def place_arbitrage(payload: ArbitrageIn):
+    """Buy on one venue and sell on the other in one call.
+
+    The buy leg goes first; if it fails the sell leg is skipped, so a rejected
+    order cannot leave the desk holding one naked side.
+    """
+    if not payload.confirm:
+        raise HTTPException(status_code=422, detail="confirm must be true to place orders")
+    if payload.qty is None or payload.qty <= 0:
+        raise HTTPException(status_code=422, detail="qty must be greater than zero")
+    if payload.buyConnectorId == payload.sellConnectorId:
+        raise HTTPException(status_code=422, detail="the two legs must use different connectors")
+
+    with SessionLocal() as s:
+        buy_conn = _get_connector(s, payload.buyConnectorId)
+        sell_conn = _get_connector(s, payload.sellConnectorId)
+        for c in (buy_conn, sell_conn):
+            if not c.enabled:
+                raise HTTPException(status_code=422, detail=f"connector '{c.label}' is disabled")
+
+        buy_leg = _place_and_record(s, buy_conn, "buy", payload.qty, payload.buyPrice)
+        if buy_leg["status"] == "failed":
+            s.commit()
+            return {
+                "ok": False,
+                "stoppedAfterBuy": True,
+                "message": "خرید ناموفق بود — فروش ارسال نشد",
+                "buy": buy_leg,
+                "sell": None,
+            }
+
+        sell_leg = _place_and_record(s, sell_conn, "sell", payload.qty, payload.sellPrice)
+        s.commit()
+        return {
+            "ok": sell_leg["status"] != "failed",
+            "stoppedAfterBuy": False,
+            "message": None if sell_leg["status"] != "failed" else "خرید انجام شد ولی فروش ناموفق بود",
+            "buy": buy_leg,
+            "sell": sell_leg,
+        }
 
 
 @app.get("/api/trade/orders")

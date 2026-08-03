@@ -92,6 +92,8 @@ DATABASE_URL=postgresql+psycopg2://user:pass@localhost:5432/goldmarket
 | `PATCH/DELETE /api/trade/connectors/{id}` | Edit / remove one order endpoint |
 | `POST /api/trade/preview` | Render the request an order would send (nothing transmitted) |
 | `POST /api/trade/orders` | Place one order (`confirm: true` required) |
+| `POST /api/trade/arbitrage` | Buy one venue and sell the other; sell is skipped if the buy fails |
+| `POST /api/trade/connectors/{id}/copy-key` | Reuse a wallet connection's credential for orders |
 | `GET /api/trade/orders?asset=gold18dom&limit=20` | Order history |
 
 **`asset` values:** `usd`, `usdt`, `aed`, `gold18`, `gold24`, `ounce`, `paxgold`, `tethergold`  
@@ -169,6 +171,16 @@ credential is copied server-side, so the secret never travels through the
 browser. Note Wallex answers `invalid API key format` for any key it does not
 recognise — a session token pasted from the web app authenticates until it
 expires, a real API key does not.
+
+### Domestic ↔ global arbitrage
+
+At the bottom of the ۱۸ داخلی page sits a panel that prices domestic 18k against
+the global ounce (`ounce × dollar ÷ troy × purity`) and states the spread as a
+percentage. The direction is derived, not chosen: domestic dearer → buy abroad
+and sell at home, domestic cheaper → the reverse. One button sends both legs via
+`POST /api/trade/arbitrage`; **the buy goes first and the sell is skipped if it
+fails**, so a rejected order cannot leave one side naked. Under 0.5% the panel
+warns that fees on both legs will likely eat the spread.
 
 **Safety.** A new connector is created in **dry-run**: the request is rendered and
 shown but never transmitted, until you press *فعال‌سازی ارسال*. `POST

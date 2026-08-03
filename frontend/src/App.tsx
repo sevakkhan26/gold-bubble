@@ -17,6 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArbitrageBoard, type ArbRow } from "@/components/ArbitrageBoard";
+import { ArbitragePanel } from "@/components/ArbitragePanel";
 import { TradeConnectors } from "@/components/TradeConnectors";
 import { TradePanel } from "@/components/TradePanel";
 import { WalletConnections } from "@/components/WalletConnections";
@@ -982,6 +983,25 @@ export default function App() {
                 exchangeNames={Object.fromEntries(EXCHANGES.map((ex) => [ex.id, ex.fa]))}
               />
             </ArbitrageBoard>
+          ) : null}
+
+          {page === "b18dom" && prices ? (
+            <ArbitragePanel
+              domesticAsset="gold18dom"
+              foreignAsset="gold18for"
+              unit="گرم"
+              domesticPrice={domAvg18 != null ? domAvg18 / 1000 : null}
+              foreignPrice={(() => {
+                const kg = gold18FromKg(
+                  marketUsd,
+                  ounceUsd,
+                  settings.troyOunce,
+                  settings.purity
+                );
+                return kg != null ? kg / 1000 : null;
+              })()}
+              exchangeNames={Object.fromEntries(EXCHANGES.map((ex) => [ex.id, ex.fa]))}
+            />
           ) : null}
 
           {/* ---- 18k foreign (live global sources) ---- */}

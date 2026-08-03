@@ -400,6 +400,114 @@ def test_copy_key_rejects_unknown_or_keyless_source():
         client.delete(f"/api/trade/connectors/{conn['id']}")
 
 
+def _two_connectors(client):
+    foreign = _make_connector(client, label="خارجی", exchange="paxg", asset="gold18for")
+    domestic = _make_connector(client, label="داخلی", exchange="nobitex", asset="gold18dom")
+    return foreign, domestic
+
+
+def test_arbitrage_places_both_legs(monkeypatch):
+    with _client() as client:
+        buy, sell = _two_connectors(client)
+        sent = []
+
+        def fake_send(conn, *, side, qty, price):
+            sent.append((conn.label, side, qty, price))
+            return {
+                "status": "sent",
+                "error": None,
+                "httpStatus": 200,
+                "request": {"url": conn.url, "body": "{}", "method": "POST"},
+                "response": "{}",
+            }
+
+        monkeypatch.setattr("app.main.trade.send_order", fake_send)
+        out = client.post(
+            "/api/trade/arbitrage",
+            json={
+                "buyConnectorId": buy["id"],
+                "sellConnectorId": sell["id"],
+                "qty": 2,
+                "buyPrice": 100,
+                "sellPrice": 110,
+                "confirm": True,
+            },
+        ).json()
+
+        assert out["ok"] is True and out["stoppedAfterBuy"] is False
+        assert sent == [("خارجی", "buy", 2.0, 100.0), ("داخلی", "sell", 2.0, 110.0)]
+        assert out["buy"]["order"]["side"] == "buy" and out["sell"]["order"]["side"] == "sell"
+        assert out["sell"]["order"]["total"] == 220
+
+        for c in (buy, sell):
+            client.delete(f"/api/trade/connectors/{c['id']}")
+
+
+def test_arbitrage_skips_sell_when_buy_fails(monkeypatch):
+    """A rejected buy must not leave the desk with a naked sell."""
+    with _client() as client:
+        buy, sell = _two_connectors(client)
+        calls = []
+
+        def fake_send(conn, *, side, qty, price):
+            calls.append(side)
+            return {
+                "status": "failed",
+                "error": "HTTP 401 — nope",
+                "httpStatus": 401,
+                "request": {"url": conn.url, "body": "{}", "method": "POST"},
+                "response": None,
+            }
+
+        monkeypatch.setattr("app.main.trade.send_order", fake_send)
+        before = client.get("/api/trade/orders?limit=500").json()["count"]
+        out = client.post(
+            "/api/trade/arbitrage",
+            json={
+                "buyConnectorId": buy["id"],
+                "sellConnectorId": sell["id"],
+                "qty": 1,
+                "confirm": True,
+            },
+        ).json()
+
+        assert out["ok"] is False and out["stoppedAfterBuy"] is True
+        assert out["sell"] is None
+        assert calls == ["buy"]  # the sell leg never ran
+
+        # Exactly one new row, and it is the buy — nothing was recorded for the sell.
+        after = client.get("/api/trade/orders?limit=500").json()
+        assert after["count"] == before + 1
+        assert after["orders"][0]["side"] == "buy"
+
+        for c in (buy, sell):
+            client.delete(f"/api/trade/connectors/{c['id']}")
+
+
+def test_arbitrage_validates_input():
+    with _client() as client:
+        buy, sell = _two_connectors(client)
+        base = {"buyConnectorId": buy["id"], "sellConnectorId": sell["id"], "qty": 1}
+
+        assert client.post("/api/trade/arbitrage", json=base).status_code == 422  # no confirm
+        assert (
+            client.post(
+                "/api/trade/arbitrage", json={**base, "qty": 0, "confirm": True}
+            ).status_code
+            == 422
+        )
+        same = {**base, "sellConnectorId": buy["id"], "confirm": True}
+        assert client.post("/api/trade/arbitrage", json=same).status_code == 422
+
+        client.patch(f"/api/trade/connectors/{sell['id']}", json={"enabled": False})
+        assert (
+            client.post("/api/trade/arbitrage", json={**base, "confirm": True}).status_code == 422
+        )
+
+        for c in (buy, sell):
+            client.delete(f"/api/trade/connectors/{c['id']}")
+
+
 def test_missing_connector_is_404():
     with _client() as client:
         assert client.patch("/api/trade/connectors/999999", json={"label": "x"}).status_code == 404

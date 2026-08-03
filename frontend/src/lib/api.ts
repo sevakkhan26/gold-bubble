@@ -277,6 +277,23 @@ export function placeOrder(payload: {
   }>("/trade/orders", "POST", { ...payload, confirm: true });
 }
 
+/** Buy one venue, sell the other. The sell leg is skipped if the buy fails. */
+export function placeArbitrage(payload: {
+  buyConnectorId: number;
+  sellConnectorId: number;
+  qty: number;
+  buyPrice?: number | null;
+  sellPrice?: number | null;
+}) {
+  return sendJson<{
+    ok: boolean;
+    stoppedAfterBuy: boolean;
+    message: string | null;
+    buy: { status: string; error?: string | null; order: TradeOrder } | null;
+    sell: { status: string; error?: string | null; order: TradeOrder } | null;
+  }>("/trade/arbitrage", "POST", { ...payload, confirm: true });
+}
+
 export function fetchTradeOrders(params: { asset?: string; exchange?: string; limit?: number }) {
   const q = new URLSearchParams();
   if (params.asset) q.set("asset", params.asset);
