@@ -566,7 +566,7 @@ def build_model(
     # One worker behind a proxy meant fifteen sources ran nose-to-tail: a single
     # bad cycle took minutes and the board froze on last-good values. Keep the
     # fan-out modest through a proxy, but never serial.
-    workers = 3 if proxy_on else min(6, len(wanted))
+    workers = min(5, len(wanted)) if proxy_on else min(6, len(wanted))
     deadline = time.time() + budget_sec if budget_sec else None
 
     def _skipped(n: str) -> dict:

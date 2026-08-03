@@ -122,13 +122,15 @@ class Refresher:
         self._thread: threading.Thread | None = None
 
     def refresh_once(self) -> dict:
-        # Never let one cycle eat the next one's slot.
+        # A safety net for a hung provider, not the pacing mechanism — _loop keeps
+        # the cadence. Sized to REFRESH_SEC it starved a slow proxied egress of the
+        # 20-40s its providers actually need, and the board came up with no data.
         out = build_model(
             config.NAVASAN_API_KEY,
             config.BRSAPI_KEY,
             config.OVERRIDES,
             config.HTTP_TIMEOUT,
-            budget_sec=max(5.0, config.REFRESH_SEC * 0.8),
+            budget_sec=max(45.0, config.REFRESH_SEC * 3.0),
         )
         fresh, report = out["model"], out["report"]
         with self._lock:
