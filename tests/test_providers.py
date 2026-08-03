@@ -78,7 +78,10 @@ def test_map_abantether_ticker():
             }
         }
     )
-    assert r["buy"] == 190877 and r["sell"] == 189444
+    # Dealer naming is customer-side: their buy_price is our ask, sell_price our bid.
+    # Keeping their labels would have produced bid > ask — a crossed book.
+    assert r["sell"] == 190877 and r["buy"] == 189444
+    assert r["buy"] < r["sell"]
 
 
 def test_map_tgju_table():
@@ -174,11 +177,13 @@ def _fake_fetch(url, timeout=8.0, retries=1):
         return (
             {
                 "data": {
+                    # Dealer quote: buy_price is what the customer pays, so it sits
+                    # above sell_price — the live API is shaped exactly like this.
                     "markets": {
                         "USDTIRT": {
                             "symbol": "USDT",
-                            "buy_price": "91980",
-                            "sell_price": "92080",
+                            "buy_price": "92080",
+                            "sell_price": "91980",
                         }
                     }
                 }

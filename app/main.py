@@ -30,7 +30,15 @@ INDEX_HTML = PUBLIC_DIR / "index.html"
 SPA_ROUTES = {
     "",
     "market",
+    "usdt",
+    "gold18",
+    "gold24",
+    "usd",
+    "aed",
     "wallet",
+    "sources",
+    "settings",
+    # Legacy paths from the page-per-bubble layout — the SPA redirects them.
     "bubbles",
     "formulas",
     "alerts",
@@ -40,8 +48,6 @@ SPA_ROUTES = {
     "b18for",
     "baed",
     "busd",
-    "settings",
-    "sources",
 }
 
 

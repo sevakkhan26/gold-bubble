@@ -181,6 +181,11 @@ def map_abantether_ticker(j: dict) -> dict | None:
     """Abantether OTC ticker → USDTIRT buy/sell Toman.
 
     Shape: { data: { markets: { USDTIRT: { symbol, buy_price, sell_price, ... } } } }
+
+    This is a dealer quote, not an order book: their `buy_price` is what the
+    customer pays (our ask/sell) and `sell_price` what the customer receives
+    (our bid/buy). Taking the names at face value produced a crossed book —
+    bid above ask — which read as a free arbitrage on every comparison.
     """
     data = j.get("data") if isinstance(j, dict) else None
     markets = (data or {}).get("markets") if isinstance(data, dict) else None
@@ -197,9 +202,9 @@ def map_abantether_ticker(j: dict) -> dict | None:
                 break
     if not isinstance(cur, dict):
         return None
-    buy = _num(cur.get("buy_price") or cur.get("buy") or cur.get("price"))
-    sell = _num(cur.get("sell_price") or cur.get("sell") or cur.get("price"))
-    return _pair_toman(buy, sell)
+    customer_pays = _num(cur.get("buy_price") or cur.get("buy") or cur.get("price"))
+    customer_gets = _num(cur.get("sell_price") or cur.get("sell") or cur.get("price"))
+    return _pair_toman(buy=customer_gets, sell=customer_pays)
 
 
 def map_gold_api(j: dict) -> float | None:

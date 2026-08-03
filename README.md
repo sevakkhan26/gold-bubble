@@ -172,6 +172,23 @@ browser. Note Wallex answers `invalid API key format` for any key it does not
 recognise — a session token pasted from the web app authenticates until it
 expires, a real API key does not.
 
+### Pages
+
+Every market page answers the same question and is built from one component
+(`ArbitrageSection`): cheapest place to buy, dearest place to sell, the gap as a
+percentage, the rates it came from, and the two orders that close it.
+
+| Page | Compares | Data |
+|------|----------|------|
+| آربیتراژ تتر | venue against venue | real per-venue order books |
+| آربیتراژ طلای ۱۸ / ۲۴ | domestic market vs global ounce | one market feed vs a computed reference |
+| آربیتراژ دلار | free market vs value implied by the dirham | TGJU |
+| آربیتراژ درهم | free market vs fair value from the dollar | TGJU |
+
+Only USDT is quoted per venue. Gold, dollar and dirham come from a single market
+feed, so those pages compare the market against a reference rather than pretending
+ten venues disagree.
+
 ### Domestic ↔ global arbitrage
 
 At the bottom of the ۱۸ داخلی page sits a panel that prices domestic 18k against
