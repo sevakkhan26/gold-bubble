@@ -222,7 +222,7 @@ python -m pytest -q
 | `BRSAPI_KEY` | _(empty)_ | Optional domestic fallback |
 | `PORT` | `8787` | HTTP port |
 | `REFRESH_SEC` | `15` | Minimum 15. One fan-out is budgeted to 80% of this, so a hanging provider is dropped rather than pushing the next cycle late |
-| `HTTP_TIMEOUT` | `8` | Provider request timeout (seconds) |
+| `HTTP_TIMEOUT` | `15`, or `30` when a proxy is configured | Provider request timeout (seconds) |
 | `APP_VERSION` | _(ignored)_ | Kept for compatibility — `app/version.py` wins so a stale `.env` cannot mask a fresh deploy |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `OUTBOUND_HTTPS_PROXY` | _(empty)_ | Outbound proxy for providers |
 | `NO_PROXY` | `db,localhost,127.0.0.1` | Skip proxy for Postgres |

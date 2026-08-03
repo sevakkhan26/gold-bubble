@@ -130,7 +130,7 @@ class Refresher:
             config.BRSAPI_KEY,
             config.OVERRIDES,
             config.HTTP_TIMEOUT,
-            budget_sec=max(45.0, config.REFRESH_SEC * 3.0),
+            budget_sec=max(90.0, config.REFRESH_SEC * 3.0),
         )
         fresh, report = out["model"], out["report"]
         with self._lock:

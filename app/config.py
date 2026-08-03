@@ -37,7 +37,14 @@ PORT = _int("PORT", 8787)
 # 15s is as fresh as these providers tolerate; the fan-out is budgeted to fit.
 REFRESH_SEC = _int("REFRESH_SEC", 15, minimum=15)
 # IR edges + outbound proxy need headroom; 8s was too tight under mtproxier.
-HTTP_TIMEOUT = _int("HTTP_TIMEOUT", 15)
+# A proxied hop adds a full connect+TLS round trip, so give it more room — 15s
+# there meant every provider timed out and the board came up empty.
+_PROXIED = bool(
+    os.environ.get("OUTBOUND_HTTPS_PROXY", "").strip()
+    or os.environ.get("HTTPS_PROXY", "").strip()
+    or os.environ.get("HTTP_PROXY", "").strip()
+)
+HTTP_TIMEOUT = _int("HTTP_TIMEOUT", 30 if _PROXIED else 15)
 
 NAVASAN_API_KEY = os.environ.get("NAVASAN_API_KEY", "")
 BRSAPI_KEY = os.environ.get("BRSAPI_KEY", "")
