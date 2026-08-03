@@ -27,8 +27,23 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _proxy_configured() -> bool:
+    import os as _os
+
+    return bool(
+        _os.environ.get("OUTBOUND_HTTPS_PROXY", "").strip()
+        or _os.environ.get("HTTPS_PROXY", "").strip()
+        or _os.environ.get("HTTP_PROXY", "").strip()
+    )
+
+
 def _http_get(url: str, timeout: float = 15.0, retries: int = 2) -> tuple[str, int]:
-    """GET raw text with timeout + retry. Honours HTTP(S)_PROXY via trust_env."""
+    """GET raw text with timeout + retry. Honours HTTP(S)_PROXY via trust_env.
+
+    If a proxy is configured and every proxied attempt fails, one direct attempt
+    follows. A dead proxy otherwise takes the whole board down even when the host
+    itself has working egress — domestic sources are usually reachable without it.
+    """
     last: Exception | None = None
     headers = {
         "User-Agent": _UA,
@@ -37,16 +52,21 @@ def _http_get(url: str, timeout: float = 15.0, retries: int = 2) -> tuple[str, i
     }
     # Generous timeouts — IR edges + mtproxier are often slow under parallel load.
     to = httpx.Timeout(timeout, connect=10.0)
-    for attempt in range(retries + 1):
+    # True = honour proxy env, False = bypass it. With a proxy configured, spend
+    # one attempt on it and the rest direct — burning every retry on a dead proxy
+    # just delays the answer by a timeout each time.
+    routes = [True] + [False] * max(1, retries) if _proxy_configured() else [True] * (retries + 1)
+
+    for attempt, use_env in enumerate(routes):
         started = time.time()
         try:
-            with httpx.Client(timeout=to, trust_env=True, headers=headers) as client:
+            with httpx.Client(timeout=to, trust_env=use_env, headers=headers) as client:
                 r = client.get(url)
             r.raise_for_status()
             return r.text, int((time.time() - started) * 1000)
         except Exception as e:  # noqa: BLE001
             last = e
-            if attempt < retries:
+            if attempt < len(routes) - 1:
                 time.sleep(0.4 * (attempt + 1))
     assert last is not None
     raise last
