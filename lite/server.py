@@ -36,9 +36,13 @@ DB_PATH = ROOT / "lite.db"
 
 PORT = int(os.environ.get("PORT", "8787"))
 REFRESH_SEC = max(15, int(os.environ.get("REFRESH_SEC", "15")))
-HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "15"))
+HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "20"))
 NAVASAN_KEY = os.environ.get("NAVASAN_API_KEY", "")
 HISTORY_DAYS = int(os.environ.get("PRICE_HISTORY_DAYS", "14"))
+
+# Last known model is persisted here so a restart shows data instantly
+# (and the board survives short network outages).
+SNAP_PATH = ROOT / "lite_last.json"
 
 VERSION = "2.2.1-lite"
 GIT_SHA = os.environ.get("APP_GIT_SHA", "lite")
@@ -244,6 +248,16 @@ def map_currency_xau(j):
     return _num(xau.get("usd")) if isinstance(xau, dict) else None
 
 
+def map_yahoo_xau(j):
+    """Yahoo Finance GC=F chart — regularMarketPrice (reliable global source)."""
+    chart = j.get("chart") if isinstance(j, dict) else None
+    result = (chart or {}).get("result")
+    if not isinstance(result, list) or not result:
+        return None
+    meta = result[0].get("meta") if isinstance(result[0], dict) else None
+    return _num(meta.get("regularMarketPrice")) if isinstance(meta, dict) else None
+
+
 def parse_navasan_initrates(text):
     m = re.search(r"var\s+lastrates\s*=\s*(\{)", text)
     if not m:
@@ -330,7 +344,8 @@ def _sources():
         ("abantether", "Abantether USDT", "https://api.abantether.com/api/v1/manager/otc/ticker", "json"),
         ("gold_api", "gold-api.com XAU", "https://api.gold-api.com/price/XAU", "json"),
         ("currency_xau", "Currency-API XAU", "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/xau.json", "json"),
-        ("coingecko", "CoinGecko PAXG/XAUT", "https://api.coingecko.com/api/v3/simple/price?ids=pax-gold,tether-gold&vs_currencies=usd", "json"),
+        ("yahoo_xau", "Yahoo Finance XAU", "https://query1.finance.yahoo.com/v8/finance/chart/GC=F", "json"),
+        ("coingecko", "CoinGecko PAXG/XAUT/GOLD", "https://api.coingecko.com/api/v3/simple/price?ids=pax-gold,tether-gold,gold&vs_currencies=usd", "json"),
     ]
     if nav_url:
         src.append(("navasan", "Navasan API", nav_url, "json"))
@@ -359,9 +374,11 @@ def _run_source(name, label, url, kind, timeout):
                 "abantether": map_abantether,
                 "gold_api": map_gold_api,
                 "currency_xau": map_currency_xau,
+                "yahoo_xau": map_yahoo_xau,
                 "coingecko": lambda j: {
                     "pax-gold": (j.get("pax-gold") or {}).get("usd"),
                     "tether-gold": (j.get("tether-gold") or {}).get("usd"),
+                    "gold": (j.get("gold") or {}).get("usd"),
                 },
             }[name](j)
         return {"source": name, "label": label, "ok": True, "ms": ms, "value": value}
@@ -401,15 +418,21 @@ def build_model(timeout=HTTP_TIMEOUT):
         if v:
             usdt_ex[ex] = v
 
-    # ounce (global)
+    # ounce (global) — multiple international fallbacks so the board always
+    # has at least the global gold price, even when IR-only sources are blocked.
     ounce = None
-    if by.get("gold_api", {}).get("value") is not None:
-        ounce = by["gold_api"]["value"]
-    elif by.get("currency_xau", {}).get("value") is not None:
-        ounce = by["currency_xau"]["value"]
+    ounce_src = None
     foreign = by.get("coingecko", {}).get("value")
-    if ounce is None and foreign and foreign.get("pax-gold"):
-        ounce = foreign["pax-gold"]
+    for key, sub in (("gold_api", None), ("currency_xau", None),
+                     ("yahoo_xau", None), ("coingecko", "gold"),
+                     ("coingecko", "pax-gold")):
+        v = by.get(key, {}).get("value")
+        if sub and isinstance(v, dict):
+            v = v.get(sub)
+        if v is not None:
+            ounce = v
+            ounce_src = key
+            break
 
     # domestic market: Navasan > TGJU
     nav = by.get("navasan", {}).get("value") or by.get("navasan_web", {}).get("value")
@@ -503,7 +526,10 @@ def build_model(timeout=HTTP_TIMEOUT):
         prov["gold24"] = {"source": "Navasan" if nav else ("TGJU" if tgju_dom else "melt-estimate"),
                           "ts": ts, "live": True, "estimated": est_gold}
     if ounce:
-        prov["ounce"] = {"source": "gold-api.com", "ts": ts, "live": True}
+        prov["ounce"] = {"source": {"gold_api": "gold-api.com", "currency_xau": "Currency-API",
+                                    "yahoo_xau": "Yahoo Finance",
+                                    "coingecko": "CoinGecko"}.get(ounce_src, ounce_src),
+                         "ts": ts, "live": True}
     if nav:
         prov["navasan"] = {"source": "Navasan", "ts": ts, "live": True, "estimated": False}
     if foreign and foreign.get("pax-gold") is not None:
@@ -621,9 +647,26 @@ def prune_history(days=HISTORY_DAYS):
 
 # ──────────────────────── refresher ────────────────────────
 
+def _load_snapshot():
+    """Last known model from disk (survives restarts / short outages)."""
+    try:
+        if SNAP_PATH.is_file():
+            return json.loads(SNAP_PATH.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def _save_snapshot(model):
+    try:
+        SNAP_PATH.write_text(json.dumps(model, ensure_ascii=False), encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
+
+
 class Refresher:
     def __init__(self):
-        self.latest = None
+        self.latest = _load_snapshot()
         self.updated_at = 0.0
         self.report = None
         self._lock = threading.Lock()
@@ -640,6 +683,7 @@ class Refresher:
                 self.latest = merge_model(self.latest, model)
                 self.updated_at = time.time()
                 self.report = report
+            _save_snapshot(self.latest)
             try:
                 store_history(model)
             except Exception as e:  # noqa: BLE001
@@ -647,6 +691,11 @@ class Refresher:
             ok = sum(1 for r in report if r["ok"])
             print(f"[lite] refresh: {ok}/{len(report)} live | "
                   f"ounce={model.get('ounceUsd')} est={model.get('estimated')}")
+            if ok == 0:
+                print("[lite] هشدار: همه‌ی منابع ناموفق بودند. "
+                      "فایروال/اینترنت را بررسی کنید (اجازه‌ی دسترسی اینترنت "
+                      "به پایتون را Allow کنید). جزئیات: " +
+                      "; ".join(r.get("error", "")[:60] for r in report[:4]))
             return self.latest
         finally:
             self._busy.release()
