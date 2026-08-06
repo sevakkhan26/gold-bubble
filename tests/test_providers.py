@@ -259,9 +259,18 @@ def test_history_store_and_api(monkeypatch):
     from app.main import app
 
     with TestClient(app) as client:
-        r = client.get("/api/prices")
+        # The first refresh now runs in the background (non-blocking startup),
+        # so poll briefly until the canned model lands.
+        import time as _time
+
+        body = None
+        for _ in range(50):
+            r = client.get("/api/prices")
+            if r.status_code == 200:
+                body = r.json()
+                break
+            _time.sleep(0.1)
         assert r.status_code == 200
-        body = r.json()
         assert body["exchanges"]["navasan"]["usd"]["sell"] == 92300
         assert body["exchanges"]["bitpin"]["usdt"]["buy"] == 92050
         assert "ageMs" in body

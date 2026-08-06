@@ -43,7 +43,12 @@ def _http_get(url: str, timeout: float = 15.0, retries: int = 2) -> tuple[str, i
     If a proxy is configured and every proxied attempt fails, one direct attempt
     follows. A dead proxy otherwise takes the whole board down even when the host
     itself has working egress — domestic sources are usually reachable without it.
+    Connect/TLS failures (blocked host, dead proxy, refused) are deterministic:
+    retrying in the same mode just delays the board, so only mode switches
+    (proxy → direct) and non-connect errors are retried.
     """
+    import ssl as _ssl
+
     last: Exception | None = None
     headers = {
         "User-Agent": _UA,
@@ -66,7 +71,14 @@ def _http_get(url: str, timeout: float = 15.0, retries: int = 2) -> tuple[str, i
             return r.text, int((time.time() - started) * 1000)
         except Exception as e:  # noqa: BLE001
             last = e
-            if attempt < len(routes) - 1:
+            fatal = isinstance(
+                e, (httpx.ConnectError, httpx.ConnectTimeout, _ssl.SSLError)
+            )
+            is_last = attempt >= len(routes) - 1
+            mode_changes_next = not is_last and use_env != routes[attempt + 1]
+            if fatal and not mode_changes_next:
+                raise
+            if not is_last:
                 time.sleep(0.4 * (attempt + 1))
     assert last is not None
     raise last

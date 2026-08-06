@@ -1,6 +1,7 @@
 """FastAPI app: /api/* + SPA frontend with path-based routes."""
 from __future__ import annotations
 
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -52,6 +53,20 @@ SPA_ROUTES = {
 }
 
 
+def _initial_refresh_in_background() -> None:
+    """First refresh runs off the request path so the site comes up instantly.
+
+    Previously lifespan ran refresh_once() synchronously: with slow or blocked
+    providers the server did not start listening until the whole fan-out budget
+    (up to ~90s) was spent — the site looked dead on every fresh machine.
+    """
+    try:
+        refresher.refresh_once()
+    except Exception as e:  # noqa: BLE001
+        print(f"[startup] initial refresh failed (will keep polling): {e}")
+    refresher.start()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -59,11 +74,7 @@ async def lifespan(app: FastAPI):
         cleanup_history(config.PRICE_HISTORY_DAYS)
     except Exception as e:  # noqa: BLE001
         print(f"[startup] retention sweep failed: {e}")
-    try:
-        refresher.refresh_once()
-    except Exception as e:  # noqa: BLE001
-        print(f"[startup] initial refresh failed (will keep polling): {e}")
-    refresher.start()
+    threading.Thread(target=_initial_refresh_in_background, daemon=True).start()
     yield
     refresher.stop()
 

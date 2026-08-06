@@ -130,10 +130,22 @@ class Refresher:
         self.updated_at: float = 0.0
         self.last_report: list | None = None
         self._lock = threading.Lock()
+        self._refreshing = threading.Lock()  # one cycle at a time
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
     def refresh_once(self) -> dict:
+        # Only one refresh cycle at a time: the background initial refresh may
+        # still be running when the loop's first cycle is due — overlap would
+        # double-fetch every provider.
+        if not self._refreshing.acquire(blocking=False):
+            return self.latest  # type: ignore[return-value]
+        try:
+            return self._refresh_once_unsafe()
+        finally:
+            self._refreshing.release()
+
+    def _refresh_once_unsafe(self) -> dict:
         # A safety net for a hung provider, not the pacing mechanism — _loop keeps
         # the cadence. Sized to REFRESH_SEC it starved a slow proxied egress of the
         # 20-40s its providers actually need, and the board came up with no data.
