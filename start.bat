@@ -63,7 +63,10 @@ if errorlevel 1 (
     if errorlevel 1 (
         echo.
         echo [خطا] نصب وابستگي ها ناموفق بود.
-        echo اتصال اينترنت را بررسي کنيد و دوباره start.bat را بزنيد.
+        echo.
+        echo راه حل سريع: به جاي اين نسخه، از  start-lite.bat  استفاده کنيد
+        echo (نسخه ي سبک؛ بدون نياز به نصب هيچ کتابخانه اي - فقط پايتون).
+        echo.
         pause
         exit /b 1
     )

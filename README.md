@@ -9,6 +9,16 @@ Full backend rewrite in **Python (FastAPI)** with **price history** for every as
 
 **Frontend (WIP):** `frontend/` holds an experimental Vite + shadcn/ui rewrite — **not** used in production until every page/settings section is ported without content loss.
 
+## Gold Market Lite — run with zero dependencies
+
+`lite/server.py` is a single-file, standard-library-only server that runs the
+same live board (no pip install needed):
+
+    python lite/server.py          # → http://localhost:8787
+    # or on Windows: double-click start-lite.bat
+
+Trade/wallet mutations are disabled in Lite (read-only board + history).
+
 ## Deploy / CI-CD (same pattern as Iran Market Terminal & OTC)
 
 | Path | What happens |
