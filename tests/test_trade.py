@@ -12,6 +12,25 @@ import pytest  # noqa: E402
 from app import trade, wallet  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_refresh(monkeypatch):
+    """TestClient startup runs a real provider refresh in the app lifespan.
+    Replace it with a canned model so tests never depend on outbound egress
+    (the full suite used to stall ~90s per TestClient behind a blocked source)."""
+    model = {
+        "updatedAt": "2026-01-01T00:00:00+00:00",
+        "ounceUsd": 4000.0,
+        "exchanges": {},
+        "market": {},
+        "usdtByExchange": {},
+        "foreignGold": {},
+        "sources": {},
+        "estimated": {"usd": False, "gold": False},
+        "anyLive": False,
+    }
+    monkeypatch.setattr("app.refresher.build_model", lambda *a, **k: {"model": model, "report": []})
+
+
 class FakeConnector:
     def __init__(self, **kw):
         self.id = kw.get("id", 1)
@@ -519,6 +538,35 @@ def test_missing_connector_is_404():
             ).status_code
             == 404
         )
+
+
+def test_api_token_guards_order_placement_when_set(monkeypatch):
+    from app import config as app_config
+
+    monkeypatch.setattr(app_config, "API_TOKEN", "sekret-token")
+    headers = {"X-API-Token": "sekret-token"}
+    with _client() as client:
+        conn = client.post(
+            "/api/trade/connectors",
+            json={
+                "label": "نوبیتکس — طلای ۱۸",
+                "exchange": "nobitex",
+                "asset": "gold18dom",
+                "url": "https://api.test/orders",
+                "method": "POST",
+                "headers": {"Authorization": "Token trade-secret"},
+                "bodyTemplate": '{"side":"{{side}}","qty":{{qty}},"price":{{price}}}',
+            },
+            headers=headers,
+        ).json()
+        payload = {"connectorId": conn["id"], "side": "buy", "qty": 1, "price": 100, "confirm": True}
+        # Without the token the money-moving call is refused.
+        assert client.post("/api/trade/orders", json=payload).status_code == 401
+        # With it, the order goes through (dry-run connector → recorded as dry).
+        r = client.post("/api/trade/orders", json=payload, headers=headers)
+        assert r.status_code == 201
+        assert r.json()["status"] == "dry"
+        client.delete(f"/api/trade/connectors/{conn['id']}", headers=headers)
 
 
 def test_wallet_balances_group_by_exchange(monkeypatch):

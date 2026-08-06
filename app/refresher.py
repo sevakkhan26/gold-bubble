@@ -7,7 +7,7 @@ import time
 from datetime import datetime, timezone
 
 from . import config
-from .db import PricePoint, SessionLocal
+from .db import PricePoint, SessionLocal, cleanup_history
 from .providers import build_model
 
 
@@ -71,6 +71,18 @@ def merge_model(prev: dict | None, nxt: dict) -> dict:
         "estimated": nxt.get("estimated") or prev.get("estimated") or {"usd": False, "gold": False},
         "anyLive": nxt.get("anyLive") or prev.get("anyLive", False),
     }
+
+
+def next_wait(duration: float, interval: float) -> float:
+    """Seconds to wait before the next refresh cycle.
+
+    Normal cycles keep the fixed cadence. A cycle that overran its slot (slow or
+    proxied egress) gets a breather equal to the overrun, capped at one interval
+    — otherwise a dead proxy produces endless back-to-back 90s cycles.
+    """
+    if duration <= interval:
+        return max(0.0, interval - duration)
+    return min(duration, interval)
 
 
 ASSET_KEYS = {"usdt": "usdt", "usd": "usd", "aed": "aed", "gold18PerKg": "gold18", "shemsh24PerKg": "gold24"}
@@ -156,6 +168,7 @@ class Refresher:
         # providers began timing out, which read as a frozen board.
         # lifespan already ran refresh_once(); wait first to avoid double-hit on start.
         next_at = time.time() + config.REFRESH_SEC
+        cycles = 0
         while not self._stop.is_set():
             if self._stop.wait(max(0.0, next_at - time.time())):
                 break
@@ -164,7 +177,19 @@ class Refresher:
                 self.refresh_once()
             except Exception as e:  # noqa: BLE001
                 print(f"[refresh] unexpected: {e}")
-            next_at = max(started + config.REFRESH_SEC, time.time() + 1.0)
+            next_at = time.time() + next_wait(time.time() - started, config.REFRESH_SEC)
+            cycles += 1
+            if cycles % 100 == 0:
+                self._cleanup_history_once()
+
+    def _cleanup_history_once(self) -> None:
+        """Retention sweep — never let it take the refresher down."""
+        try:
+            removed = cleanup_history(config.PRICE_HISTORY_DAYS)
+            if removed:
+                print(f"[history] retention: removed {removed} rows older than {config.PRICE_HISTORY_DAYS}d")
+        except Exception as e:  # noqa: BLE001
+            print(f"[history] retention failed: {e}")
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():

@@ -139,27 +139,49 @@ def validate_url(url: str) -> str:
     return u
 
 
+def _proxy_configured() -> bool:
+    import os as _os
+
+    return bool(
+        _os.environ.get("OUTBOUND_HTTPS_PROXY", "").strip()
+        or _os.environ.get("HTTPS_PROXY", "").strip()
+        or _os.environ.get("HTTP_PROXY", "").strip()
+    )
+
+
+def _call_once(conn, url: str, headers: dict, body: str, use_env: bool) -> httpx.Response:
+    """One attempt at the connection's endpoint. `use_env` selects proxy-vs-direct."""
+    timeout = httpx.Timeout(config.HTTP_TIMEOUT, connect=10.0)
+    with httpx.Client(timeout=timeout, trust_env=use_env, headers=headers) as client:
+        if (conn.method or "GET").upper() == "POST":
+            if body:
+                headers.setdefault("Content-Type", "application/json")
+                return client.post(url, content=body.encode("utf-8"))
+            return client.post(url)
+        return client.get(url)
+
+
 def fetch_balance(conn) -> dict:
     """Call one connection's endpoint and pull the balance out of the response.
 
     Never raises — returns {"ok", "value", "ms", "error"} so one broken exchange
-    cannot take down /api/wallet/balances.
+    cannot take down /api/wallet/balances. Mirrors the provider fix from v2.0.5:
+    with an outbound proxy configured, spend one attempt on it and fall back to a
+    direct connection when the proxy is dead. Retrying is safe here — balances
+    are GET reads; POST endpoints are never retried.
     """
     started = time.time()
     try:
         url = validate_url(conn.url)
         headers = {"Accept": "application/json", **parse_headers(conn.headers_json)}
         body = (conn.body or "").strip()
-        timeout = httpx.Timeout(config.HTTP_TIMEOUT, connect=10.0)
-        with httpx.Client(timeout=timeout, trust_env=True, headers=headers) as client:
-            if (conn.method or "GET").upper() == "POST":
-                if body:
-                    headers.setdefault("Content-Type", "application/json")
-                    r = client.post(url, content=body.encode("utf-8"))
-                else:
-                    r = client.post(url)
-            else:
-                r = client.get(url)
+        try:
+            r = _call_once(conn, url, headers, body, use_env=True)
+        except Exception:
+            if not (_proxy_configured() and (conn.method or "GET").upper() == "GET"):
+                raise
+            # Dead proxy — try the same read directly.
+            r = _call_once(conn, url, headers, body, use_env=False)
         if not 200 <= r.status_code < 300:
             # The exchange's own message is the only thing that explains a 401
             # ("invalid API key format" vs a key with the wrong permissions).

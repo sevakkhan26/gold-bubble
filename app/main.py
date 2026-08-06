@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -18,6 +18,7 @@ from .db import (
     TradeConnector,
     TradeOrder,
     WalletConnection,
+    cleanup_history,
     init_db,
 )
 from .refresher import refresher
@@ -54,6 +55,10 @@ SPA_ROUTES = {
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    try:
+        cleanup_history(config.PRICE_HISTORY_DAYS)
+    except Exception as e:  # noqa: BLE001
+        print(f"[startup] retention sweep failed: {e}")
     try:
         refresher.refresh_once()
     except Exception as e:  # noqa: BLE001
@@ -223,6 +228,16 @@ def _check_method(method: str) -> str:
     return m
 
 
+def _require_token(request: Request) -> None:
+    """Optional shared secret (API_TOKEN) for mutating wallet/trade endpoints.
+
+    Empty API_TOKEN (default) keeps the open LAN behavior; when set, every
+    POST/PATCH/DELETE below must carry it as the `X-API-Token` header.
+    """
+    if config.API_TOKEN and request.headers.get("x-api-token", "") != config.API_TOKEN:
+        raise HTTPException(status_code=401, detail="missing or invalid X-API-Token")
+
+
 def _get_conn(s, conn_id: int) -> WalletConnection:
     conn = s.get(WalletConnection, conn_id)
     if conn is None:
@@ -244,7 +259,7 @@ def list_connections():
 
 
 @app.post("/api/wallet/connections", status_code=201)
-def create_connection(payload: ConnectionIn):
+def create_connection(payload: ConnectionIn, request: Request, _token: None = Depends(_require_token)):
     conn = WalletConnection(
         label=payload.label.strip(),
         asset=_check_asset(payload.asset),
@@ -264,7 +279,7 @@ def create_connection(payload: ConnectionIn):
 
 
 @app.patch("/api/wallet/connections/{conn_id}")
-def update_connection(conn_id: int, payload: ConnectionPatch):
+def update_connection(conn_id: int, payload: ConnectionPatch, request: Request, _token: None = Depends(_require_token)):
     with SessionLocal() as s:
         conn = _get_conn(s, conn_id)
         if payload.label is not None:
@@ -292,7 +307,7 @@ def update_connection(conn_id: int, payload: ConnectionPatch):
 
 
 @app.delete("/api/wallet/connections/{conn_id}")
-def delete_connection(conn_id: int):
+def delete_connection(conn_id: int, request: Request, _token: None = Depends(_require_token)):
     with SessionLocal() as s:
         conn = _get_conn(s, conn_id)
         s.delete(conn)
@@ -301,7 +316,7 @@ def delete_connection(conn_id: int):
 
 
 @app.post("/api/wallet/connections/{conn_id}/test")
-def test_connection(conn_id: int):
+def test_connection(conn_id: int, request: Request, _token: None = Depends(_require_token)):
     """Call one endpoint right now and report what came back."""
     with SessionLocal() as s:
         conn = _get_conn(s, conn_id)
@@ -435,7 +450,7 @@ def list_connectors():
 
 
 @app.post("/api/trade/connectors", status_code=201)
-def create_connector(payload: ConnectorIn):
+def create_connector(payload: ConnectorIn, request: Request, _token: None = Depends(_require_token)):
     conn = TradeConnector(
         label=payload.label.strip(),
         exchange=payload.exchange.strip(),
@@ -456,7 +471,7 @@ def create_connector(payload: ConnectorIn):
 
 
 @app.patch("/api/trade/connectors/{conn_id}")
-def update_connector(conn_id: int, payload: ConnectorPatch):
+def update_connector(conn_id: int, payload: ConnectorPatch, request: Request, _token: None = Depends(_require_token)):
     with SessionLocal() as s:
         conn = _get_connector(s, conn_id)
         if payload.label is not None:
@@ -486,7 +501,7 @@ def update_connector(conn_id: int, payload: ConnectorPatch):
 
 
 @app.delete("/api/trade/connectors/{conn_id}")
-def delete_connector(conn_id: int):
+def delete_connector(conn_id: int, request: Request, _token: None = Depends(_require_token)):
     with SessionLocal() as s:
         conn = _get_connector(s, conn_id)
         s.delete(conn)
@@ -495,7 +510,7 @@ def delete_connector(conn_id: int):
 
 
 @app.post("/api/trade/connectors/{conn_id}/copy-key")
-def copy_key_from_wallet(conn_id: int, payload: CopyKeyIn):
+def copy_key_from_wallet(conn_id: int, payload: CopyKeyIn, request: Request, _token: None = Depends(_require_token)):
     """Reuse the credential of a wallet connection that is already working.
 
     Copied inside the server — the secret is never sent to the browser in either
@@ -531,7 +546,7 @@ def preview_order(payload: OrderIn):
 
 
 @app.post("/api/trade/orders", status_code=201)
-def place_order(payload: OrderIn):
+def place_order(payload: OrderIn, request: Request, _token: None = Depends(_require_token)):
     """Place one order. Requires confirm=true; dry-run connectors never transmit."""
     if not payload.confirm:
         raise HTTPException(status_code=422, detail="confirm must be true to place an order")
@@ -574,7 +589,7 @@ def _place_and_record(s, conn: TradeConnector, side: str, qty: float, price: flo
 
 
 @app.post("/api/trade/arbitrage", status_code=201)
-def place_arbitrage(payload: ArbitrageIn):
+def place_arbitrage(payload: ArbitrageIn, request: Request, _token: None = Depends(_require_token)):
     """Buy on one venue and sell on the other in one call.
 
     The buy leg goes first; if it fails the sell leg is skipped, so a rejected

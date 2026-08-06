@@ -220,6 +220,8 @@ python -m pytest -q
 | `DATABASE_URL` | `sqlite:///./data.db` | Use Postgres URL in production / Docker |
 | `NAVASAN_API_KEY` | _(empty)_ | Required for live domestic USD/AED/gold |
 | `BRSAPI_KEY` | _(empty)_ | Optional domestic fallback |
+| `PRICE_HISTORY_DAYS` | Days of `price_points` history kept (default 14; swept automatically) |
+| `API_TOKEN` | Optional shared secret — when set, mutating wallet/trade endpoints require it as `X-API-Token` |
 | `PORT` | `8787` | HTTP port |
 | `REFRESH_SEC` | `15` | Minimum 15. One fan-out is budgeted to 80% of this, so a hanging provider is dropped rather than pushing the next cycle late |
 | `HTTP_TIMEOUT` | `15`, or `30` when a proxy is configured | Provider request timeout (seconds) |

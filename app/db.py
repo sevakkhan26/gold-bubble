@@ -1,7 +1,7 @@
 """Database layer (SQLAlchemy). Postgres in prod via DATABASE_URL; SQLite for dev."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import (
     Boolean, DateTime, Float, Integer, String, Text, create_engine, Index, inspect, text,
@@ -137,3 +137,13 @@ def _add_missing_columns() -> None:
 def init_db() -> None:
     Base.metadata.create_all(engine)
     _add_missing_columns()
+
+
+def cleanup_history(days: int) -> int:
+    """Delete price_points older than `days`. Returns rows removed."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("DELETE FROM price_points WHERE ts < :cutoff"), {"cutoff": cutoff}
+        )
+    return result.rowcount

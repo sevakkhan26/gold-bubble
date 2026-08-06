@@ -49,6 +49,15 @@ HTTP_TIMEOUT = _int("HTTP_TIMEOUT", 30 if _PROXIED else 15)
 NAVASAN_API_KEY = os.environ.get("NAVASAN_API_KEY", "")
 BRSAPI_KEY = os.environ.get("BRSAPI_KEY", "")
 
+# How many days of price_points to keep. The table grows ~20 rows every
+# REFRESH_SEC (≈115k rows/day at 15s) — without retention the DB grows forever.
+PRICE_HISTORY_DAYS = _int("PRICE_HISTORY_DAYS", 14, minimum=1)
+
+# Optional shared secret for mutating wallet/trade endpoints. When set, every
+# POST/PATCH/DELETE on /api/wallet/connections* and /api/trade/* must carry it
+# as `X-API-Token`. Empty (default) keeps the open LAN behavior.
+API_TOKEN = os.environ.get("API_TOKEN", "").strip()
+
 # Optional outbound proxy (httpx trust_env). Same idea as OTC / Iran Market Terminal.
 # Prefer OUTBOUND_HTTPS_PROXY; fall back to standard HTTPS_PROXY / HTTP_PROXY.
 _OUTBOUND = (

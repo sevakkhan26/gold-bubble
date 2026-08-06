@@ -615,6 +615,10 @@ def build_model(
                 fut.cancel()
                 results.append(_skipped(futs[fut]))
 
+    # Defensive: run_source never returns None, but a stray future result must
+    # not take the whole model down (observed once on a first-cycle race).
+    results = [r for r in results if isinstance(r, dict)]
+
     by = {r["source"]: r for r in results}
     ts = _now_iso()
     prov: dict = {}

@@ -12,6 +12,24 @@ import pytest  # noqa: E402
 from app import wallet  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_refresh(monkeypatch):
+    """TestClient startup runs a real provider refresh in the app lifespan.
+    Replace it with a canned model so tests never depend on outbound egress."""
+    model = {
+        "updatedAt": "2026-01-01T00:00:00+00:00",
+        "ounceUsd": 4000.0,
+        "exchanges": {},
+        "market": {},
+        "usdtByExchange": {},
+        "foreignGold": {},
+        "sources": {},
+        "estimated": {"usd": False, "gold": False},
+        "anyLive": False,
+    }
+    monkeypatch.setattr("app.refresher.build_model", lambda *a, **k: {"model": model, "report": []})
+
+
 class FakeConn:
     """Stand-in for a WalletConnection row (fetch_balance only reads attributes)."""
 
@@ -371,3 +389,26 @@ def test_missing_connection_is_404():
         assert client.patch("/api/wallet/connections/999999", json={"label": "x"}).status_code == 404
         assert client.delete("/api/wallet/connections/999999").status_code == 404
         assert client.post("/api/wallet/connections/999999/test").status_code == 404
+
+
+def test_api_token_guards_wallet_writes_when_set(monkeypatch):
+    from app import config as app_config
+
+    monkeypatch.setattr(app_config, "API_TOKEN", "sekret-token")
+    payload = {
+        "label": "تست",
+        "asset": "usdt",
+        "url": "https://example.test/balances",
+        "jsonPath": "result.balance",
+    }
+    with _client() as client:
+        r = client.post("/api/wallet/connections", json=payload)
+        assert r.status_code == 401
+        r = client.post("/api/wallet/connections", json=payload, headers={"X-API-Token": "sekret-token"})
+        assert r.status_code == 201
+        conn_id = r.json()["id"]
+        # Reads stay open.
+        assert client.get("/api/wallet/connections").status_code == 200
+        # Mutations require the token.
+        assert client.delete(f"/api/wallet/connections/{conn_id}").status_code == 401
+        assert client.delete(f"/api/wallet/connections/{conn_id}", headers={"X-API-Token": "sekret-token"}).status_code == 200
