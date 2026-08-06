@@ -18,11 +18,11 @@ if not errorlevel 1 (
 ) else (
     echo     python در PATH نيست!
 )
-where py >nul 2>nul
-if not errorlevel 1 (
-    py -3 --version
+if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" (
+    echo     پايتون نصب شده روي سيستم:
+    "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" --version
 ) else (
-    echo     py هم پيدا نشد!
+    echo     پايتون در مسير معمول نصب نيست (شايد نصب نشده)
 )
 echo.
 
@@ -48,7 +48,7 @@ if not errorlevel 1 (
 )
 echo.
 
-echo [4] لاگ سرور (اگر اجرا شده باشد):
+echo [4] لاگ سرور (server.log):
 if exist server.log (
     type server.log
 ) else (
