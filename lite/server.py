@@ -40,9 +40,18 @@ HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "15"))
 NAVASAN_KEY = os.environ.get("NAVASAN_API_KEY", "")
 HISTORY_DAYS = int(os.environ.get("PRICE_HISTORY_DAYS", "14"))
 
-VERSION = "2.2.0-lite"
+VERSION = "2.2.1-lite"
 GIT_SHA = os.environ.get("APP_GIT_SHA", "lite")
 BUILD_TIME = "portable"
+
+# Windows: console/file output may default to a codepage that cannot encode
+# Persian — force UTF-8 so printing the banner/log never crashes the server.
+if os.name == "nt":
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001
+            pass
 
 GRAMS_PER_KG = 1000
 TROY = 31.1035
