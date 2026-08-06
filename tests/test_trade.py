@@ -569,6 +569,60 @@ def test_api_token_guards_order_placement_when_set(monkeypatch):
         client.delete(f"/api/trade/connectors/{conn['id']}", headers=headers)
 
 
+def test_trade_url_allowlist_blocks_and_allows(monkeypatch):
+    from app import config as app_config
+
+    monkeypatch.setattr(
+        app_config, "TRADE_ALLOWED_DOMAINS", ["api.wallex.ir", "nobitex.ir"]
+    )
+    # Unknown host → refused at build time (the safety net for pre-existing connectors).
+    with pytest.raises(ValueError, match="not in TRADE_ALLOWED_DOMAINS"):
+        trade.build_request(
+            FakeConnector(url="https://evil.example/orders"), side="buy", qty=1, price=10
+        )
+    # Exact host allowed.
+    r = trade.build_request(
+        FakeConnector(url="https://api.wallex.ir/v1/orders"), side="buy", qty=1, price=10
+    )
+    assert r["url"].startswith("https://api.wallex.ir")
+    # Subdomain allowed.
+    r = trade.build_request(
+        FakeConnector(url="https://deep.sub.nobitex.ir/orders"), side="buy", qty=1, price=10
+    )
+    assert r["url"].startswith("https://deep.sub.nobitex.ir")
+    # A lookalike host (prefix trick) is NOT allowed.
+    with pytest.raises(ValueError, match="not in TRADE_ALLOWED_DOMAINS"):
+        trade.build_request(
+            FakeConnector(url="https://evilnobitex.ir/orders"), side="buy", qty=1, price=10
+        )
+
+
+def test_connector_api_enforces_allowlist_when_set(monkeypatch):
+    from app import config as app_config
+
+    monkeypatch.setattr(app_config, "TRADE_ALLOWED_DOMAINS", ["api.wallex.ir"])
+    with _client() as client:
+        base = {
+            "label": "والکس",
+            "exchange": "wallex",
+            "asset": "usdt",
+            "method": "POST",
+        }
+        bad = client.post(
+            "/api/trade/connectors",
+            json={**base, "url": "https://evil.example/orders"},
+        )
+        assert bad.status_code == 422
+        assert "not in TRADE_ALLOWED_DOMAINS" in bad.json()["detail"]
+
+        good = client.post(
+            "/api/trade/connectors",
+            json={**base, "url": "https://api.wallex.ir/v1/orders"},
+        )
+        assert good.status_code == 201
+        client.delete(f"/api/trade/connectors/{good.json()['id']}")
+
+
 def test_wallet_balances_group_by_exchange(monkeypatch):
     with _client() as client:
         made = []

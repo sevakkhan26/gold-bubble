@@ -53,6 +53,29 @@ def side_value(conn, side: str) -> str:
     return (conn.buy_value if side == "buy" else conn.sell_value) or side
 
 
+def validate_trade_url(url: str) -> str:
+    """validate_url() + optional TRADE_ALLOWED_DOMAINS host allowlist.
+
+    With the allowlist set, the host must be an exact match or a subdomain of an
+    allowed domain — the SSRF guard for money-moving endpoints. Applied both when
+    a connector is created/edited and again inside build_request(), so a
+    connector created before the allowlist was set cannot slip through either.
+    """
+    import urllib.parse as _up
+
+    u = validate_url(url)
+    allowed = config.TRADE_ALLOWED_DOMAINS
+    if not allowed:
+        return u
+    host = (_up.urlsplit(u).hostname or "").lower()
+    if not host:
+        raise ValueError("url has no hostname")
+    for d in allowed:
+        if host == d or host.endswith("." + d):
+            return u
+    raise ValueError(f"host '{host}' is not in TRADE_ALLOWED_DOMAINS")
+
+
 def build_request(conn, *, side: str, qty: float, price: float | None) -> dict:
     """Render the outgoing request without sending it (also used by the preview)."""
     if qty is None or qty <= 0:
@@ -67,7 +90,7 @@ def build_request(conn, *, side: str, qty: float, price: float | None) -> dict:
     }
     return {
         "method": (conn.method or "POST").upper(),
-        "url": validate_url(render_template(conn.url, values)),
+        "url": validate_trade_url(render_template(conn.url, values)),
         "body": render_template(conn.body_template or "", values),
     }
 

@@ -435,6 +435,14 @@ def _check_trade_method(method: str) -> str:
     return m
 
 
+def _check_trade_url(url: str) -> str:
+    """validate_url() + the TRADE_ALLOWED_DOMAINS host allowlist (SSRF guard)."""
+    try:
+        return trade.validate_trade_url(url)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
 def _get_connector(s, conn_id: int) -> TradeConnector:
     conn = s.get(TradeConnector, conn_id)
     if conn is None:
@@ -455,7 +463,7 @@ def create_connector(payload: ConnectorIn, request: Request, _token: None = Depe
         label=payload.label.strip(),
         exchange=payload.exchange.strip(),
         asset=_check_asset(payload.asset),
-        url=_check_url(payload.url),
+        url=_check_trade_url(payload.url),
         method=_check_trade_method(payload.method),
         headers_json=wallet.merge_headers(None, payload.headers),
         body_template=payload.bodyTemplate or "",
@@ -481,7 +489,7 @@ def update_connector(conn_id: int, payload: ConnectorPatch, request: Request, _t
         if payload.asset is not None:
             conn.asset = _check_asset(payload.asset)
         if payload.url is not None:
-            conn.url = _check_url(payload.url)
+            conn.url = _check_trade_url(payload.url)
         if payload.method is not None:
             conn.method = _check_trade_method(payload.method)
         if payload.headers is not None:

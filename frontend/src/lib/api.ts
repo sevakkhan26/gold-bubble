@@ -1,4 +1,5 @@
 /** Types + fetch helpers for the FastAPI backend. */
+import { getApiToken } from "@/lib/token";
 
 export type Pair = { buy?: number | null; sell?: number | null; latest?: number | null };
 
@@ -168,7 +169,14 @@ export const SECRET_MASK = "••••••";
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) || "/api";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store", ...init });
+  const headers = new Headers(init?.headers);
+  const token = getApiToken();
+  if (token) headers.set("X-API-Token", token);
+  const res = await fetch(`${API_BASE}${path}`, {
+    cache: "no-store",
+    ...init,
+    headers,
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const detail = typeof body?.detail === "string" ? body.detail : null;

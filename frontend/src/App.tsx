@@ -31,6 +31,7 @@ import {
   type Settings,
 } from "@/lib/market";
 import { cn, formatToman, formatUsd } from "@/lib/utils";
+import { getApiToken, setApiToken } from "@/lib/token";
 
 type PageId =
   | "market"
@@ -166,6 +167,7 @@ export default function App() {
       return DEFAULT_SETTINGS;
     }
   });
+  const [apiToken, setApiTokenState] = useState<string>(() => getApiToken());
   const { prices, health, report, error, loading, refresh } = usePrices(
     settings.refreshSec * 1000
   );
@@ -213,6 +215,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("gb-settings", JSON.stringify(settings));
   }, [settings]);
+
+  useEffect(() => {
+    setApiToken(apiToken);
+  }, [apiToken]);
   useEffect(() => {
     localStorage.setItem("gb-wallet", JSON.stringify(wallet));
   }, [wallet]);
@@ -884,11 +890,12 @@ export default function App() {
 
           {/* ---- SETTINGS ---- */}
           {page === "settings" ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>پارامترهای محاسبه</CardTitle>
-                <CardDescription>در localStorage مرورگر ذخیره می‌شود</CardDescription>
-              </CardHeader>
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>پارامترهای محاسبه</CardTitle>
+                  <CardDescription>در localStorage مرورگر ذخیره می‌شود</CardDescription>
+                </CardHeader>
               <CardContent className="grid max-w-lg gap-4">
                 {(
                   [
@@ -921,6 +928,32 @@ export default function App() {
                 </p>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>توکن امنیتی API</CardTitle>
+                <CardDescription>برای ثبت سفارش و مدیریت اتصال‌ها — هدر X-API-Token</CardDescription>
+              </CardHeader>
+              <CardContent className="grid max-w-lg gap-4">
+                <label className="block t-md">
+                  <span className="text-muted-foreground">توکن (اختیاری)</span>
+                  <input
+                    type="password"
+                    dir="ltr"
+                    className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2"
+                    placeholder="در سرور با API_TOKEN تنظیم می‌شود"
+                    value={apiToken}
+                    onChange={(e) => setApiTokenState(e.target.value)}
+                  />
+                </label>
+                <p className="t-sm text-muted-foreground">
+                  اگر سرور API_TOKEN داشته باشد، ثبت سفارش، آربیتراژ و ویرایش اتصال‌ها بدون این
+                  توکن با خطای ۴۰۱ رد می‌شود. این توکن فقط در همین مرورگر (localStorage) ذخیره
+                  می‌شود و با هر درخواست به سرور فرستاده می‌شود.
+                </p>
+              </CardContent>
+              </Card>
+            </>
           ) : null}
 
           <Separator />

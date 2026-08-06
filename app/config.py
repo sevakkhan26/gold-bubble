@@ -58,6 +58,16 @@ PRICE_HISTORY_DAYS = _int("PRICE_HISTORY_DAYS", 14, minimum=1)
 # as `X-API-Token`. Empty (default) keeps the open LAN behavior.
 API_TOKEN = os.environ.get("API_TOKEN", "").strip()
 
+# Optional allowlist of hostnames for TRADE connectors (orders/arbitrage). When
+# set (comma-separated), a connector URL must match one of these — exact host or
+# subdomain. This is the SSRF guard: an order connector can only ever reach
+# hosts you listed (e.g. api.wallex.ir,api.nobitex.ir). Empty keeps open.
+TRADE_ALLOWED_DOMAINS = [
+    d.strip().lower()
+    for d in os.environ.get("TRADE_ALLOWED_DOMAINS", "").split(",")
+    if d.strip()
+]
+
 # Optional outbound proxy (httpx trust_env). Same idea as OTC / Iran Market Terminal.
 # Prefer OUTBOUND_HTTPS_PROXY; fall back to standard HTTPS_PROXY / HTTP_PROXY.
 _OUTBOUND = (
