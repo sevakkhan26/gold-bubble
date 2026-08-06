@@ -1,0 +1,6 @@
+# وابستگی‌های نسخه‌ی همراه (portable) ویندوز — بدون pytest و بدون uvicorn[standard]
+fastapi==0.115.5
+uvicorn==0.32.1
+httpx==0.28.1
+SQLAlchemy==2.0.36
+psycopg2-binary==2.9.10
