@@ -15,9 +15,11 @@ if not defined PY where py >nul 2>nul && set "PY=py -3"
 if not defined PY (
     echo.
     echo [خطا] پايتون روي اين سيستم پيدا نشد!
-    echo از اين آدرس نصب کنيد:  https://www.python.org/downloads/
-    echo هنگام نصب، تيک «Add python.exe to PATH» را بزنيد.
-    echo بعد از نصب، دوباره اين فايل را اجرا کنيد.
+    echo.
+    echo راه حل: روي  install-python.bat  دوبار کليک کنيد
+    echo تا پايتون خودکار نصب شود، بعد دوباره start.bat.
+    echo (يا از https://www.python.org/downloads/ نصب کنيد
+    echo  و هنگام نصب تيک «Add python.exe to PATH» را بزنيد)
     pause
     exit /b 1
 )
