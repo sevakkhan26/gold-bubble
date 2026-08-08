@@ -3,10 +3,11 @@ setlocal
 chcp 65001 >nul
 cd /d "%~dp0"
 title Gold Market Site - راه انداز سايت
+set "EXPECT=2.2.4-lite"
 
 echo ============================================
 echo   Gold Market Site - راه اندازي سايت
-echo   (پايتون همراه برنامه است؛ نيازي به نصب نيست)
+echo   نسخه: %EXPECT%
 echo ============================================
 echo.
 
@@ -23,9 +24,8 @@ if not exist "%~dp0lite\server.py" (
 
 REM ---------- 1) انتخاب پايتون ----------
 set "PY="
-REM اول: پايتون همراه (داخل پوشه ي portable) - بدون نياز به نصب
+if defined GB_PY set "PY=%GB_PY%"
 if exist "%~dp0portable\python\python.exe" set "PY=%~dp0portable\python\python.exe"
-REM دوم: پايتون نصب شده روي سيستم (مسير معمول نصب کاربر)
 if not defined PY if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" set "PY=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
 if not defined PY (
     for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do if exist "%%D\python.exe" set "PY=%%D\python.exe"
@@ -49,27 +49,40 @@ echo پايتون: %PY%
 "%PY%" --version
 echo.
 
-REM ---------- 2) اگر سايت از قبل بالا است ----------
-"%PY%" -c "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8787/api/health',timeout=2).status==200 else 1)" >nul 2>nul
+REM ---------- 2) نسخه ي سرور در حال اجرا چيست؟ ----------
+curl -s -m 3 http://127.0.0.1:8787/api/version > "%TEMP%\gbver.json" 2>nul
+findstr /C:"%EXPECT%" "%TEMP%\gbver.json" >nul 2>nul
 if not errorlevel 1 (
-    echo سايت از قبل در حال اجراست. باز کردن مرورگر ...
+    echo سايت با آخرين نسخه (%EXPECT%) در حال اجراست. باز کردن مرورگر ...
     start "" http://localhost:8787
+    echo.
     pause
     exit /b 0
 )
 
-REM ---------- 3) پورت آزاد است؟ ----------
+REM ---------- 3) سرور قديمي روي پورت هست؟ متوقفش کن ----------
 "%PY%" -c "import socket,sys;sys.exit(0 if socket.socket().connect_ex(('127.0.0.1',8787))==0 else 1)" >nul 2>nul
 if not errorlevel 1 (
-    echo [خطا] پورت 8787 اشغال است!
-    echo برنامه ي ديگري روي اين پورت است؛ آن را ببنديد و دوباره اجرا کنيد.
-    pause
-    exit /b 1
+    echo نسخه ي قديمي يا ديگري روي پورت 8787 در حال اجراست.
+    echo متوقف مي شود تا نسخه ي جديد (%EXPECT%) بالا بيايد ...
+    for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":8787" ^| findstr "LISTENING"') do taskkill /F /PID %%P >nul 2>nul
+    REM صبر کن تا پورت کاملا آزاد شود (حداکثر 10 ثانيه)
+    set /a k=0
+    :freeloop
+    set /a k+=1
+    "%PY%" -c "import socket,sys;sys.exit(0 if socket.socket().connect_ex(('127.0.0.1',8787))==0 else 1)" >nul 2>nul
+    if not errorlevel 1 (
+        if %k% lss 10 (
+            timeout /t 1 /nobreak >nul
+            goto freeloop
+        )
+    )
+    del "%~dp0lite.log" >nul 2>nul
 )
 
 REM ---------- 4) اجراي سرور (پنجره ي جداگانه) ----------
+echo.
 echo [1/2] اجراي سرور ...
-del "%~dp0lite.log" >nul 2>nul
 set "GB_PY=%PY%"
 start "Gold Market Site Server" /min "%~dp0run-lite.bat"
 
@@ -94,16 +107,14 @@ if %tries% lss 60 (
     if exist "%~dp0lite.log" (
         start notepad "%~dp0lite.log"
         echo   فايل lite.log در Notepad باز شد.
-    ) else (
-        echo   فايل lite.log هنوز ساخته نشده است.
     )
     echo   از پنجره ي «Gold Market Site Server» هم اسکرين شات بگيريد.
-    echo.
 )
 echo   باز کردن مرورگر ...
 start "" http://localhost:8787
 echo.
-echo سايت در پنجره ي جداگانه اجرا مي شود.
+echo سايت با نسخه ي %EXPECT% اجرا شد.
+echo براي اطمينان از نسخه:  http://localhost:8787/api/version
 echo براي خاموش کردن: پنجره ي «Gold Market Site Server» را ببنديد.
 echo.
 pause
