@@ -44,7 +44,7 @@ HISTORY_DAYS = int(os.environ.get("PRICE_HISTORY_DAYS", "14"))
 # (and the board survives short network outages).
 SNAP_PATH = ROOT / "lite_last.json"
 
-VERSION = "2.2.5-lite"
+VERSION = "2.2.6-lite"
 GIT_SHA = os.environ.get("APP_GIT_SHA", "lite")
 BUILD_TIME = "portable"
 
@@ -384,7 +384,7 @@ def _run_source(name, label, url, kind, timeout):
         return {"source": name, "label": label, "ok": True, "ms": ms, "value": value}
     except Exception as e:  # noqa: BLE001
         return {"source": name, "label": label, "ok": False, "ms": None,
-                "value": None, "error": str(e)[:160]}
+                "value": None, "error": ("قطع: " + str(e)[:80])}
 
 
 # ──────────────────────── model building ────────────────────────
@@ -439,7 +439,7 @@ def build_model(timeout=HTTP_TIMEOUT):
             fut.cancel()
             results.append(
                 {"source": futs[fut], "label": futs[fut], "ok": False,
-                 "ms": None, "value": None, "error": "skipped — slow (early publish)"}
+                 "ms": None, "value": None, "error": "قطع — کند (انتشار زودهنگام؛ در چرخه‌ی بعد می‌آید)"}
             )
 
     by = {r["source"]: r for r in results}

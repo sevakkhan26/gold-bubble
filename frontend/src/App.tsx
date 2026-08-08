@@ -879,7 +879,9 @@ export default function App() {
                             {r.ms}ms
                           </span>
                         ) : null}
-                        <Badge variant={r.ok ? "live" : "danger"}>{r.ok ? "OK" : "ERR"}</Badge>
+                        <Badge variant={r.ok ? "live" : "danger"}>
+                          {r.ok ? "فعال" : "قطع"}
+                        </Badge>
                       </div>
                     </div>
                   ))}
