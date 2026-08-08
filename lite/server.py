@@ -44,7 +44,7 @@ HISTORY_DAYS = int(os.environ.get("PRICE_HISTORY_DAYS", "14"))
 # (and the board survives short network outages).
 SNAP_PATH = ROOT / "lite_last.json"
 
-VERSION = "2.2.2-lite"
+VERSION = "2.2.3-lite"
 GIT_SHA = os.environ.get("APP_GIT_SHA", "lite")
 BUILD_TIME = "portable"
 
