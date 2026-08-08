@@ -36,7 +36,7 @@ DB_PATH = ROOT / "lite.db"
 
 PORT = int(os.environ.get("PORT", "8787"))
 REFRESH_SEC = max(15, int(os.environ.get("REFRESH_SEC", "15")))
-HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "20"))
+HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "12"))
 NAVASAN_KEY = os.environ.get("NAVASAN_API_KEY", "")
 HISTORY_DAYS = int(os.environ.get("PRICE_HISTORY_DAYS", "14"))
 
@@ -389,24 +389,58 @@ def _run_source(name, label, url, kind, timeout):
 
 # ──────────────────────── model building ────────────────────────
 
+# Publish the board as soon as the core sources have landed, without waiting
+# for slow/blocked stragglers — that is what kept updates looking frozen.
+FAST_PUBLISH_SEC = max(8.0, min(20.0, float(REFRESH_SEC)))
+MIN_PUBLISH_SEC = 6.0  # let the fast wave (ounce + USDT venues) land first
+
+
+def _core_ready(results) -> bool:
+    """Enough data to show a meaningful board yet?"""
+    by = {r["source"]: r for r in results if r.get("ok")}
+    if not by:
+        return False
+    has_ounce = any(
+        by.get(k, {}).get("value") is not None
+        for k in ("gold_api", "currency_xau", "yahoo_xau")
+    )
+    has_usd = (
+        by.get("navasan_web", {}).get("value") is not None
+        or by.get("tgju_usd", {}).get("value") is not None
+        or any(by.get(k, {}).get("value") is not None for k in ("nobitex", "wallex", "exir"))
+    )
+    has_gold = by.get("tgju_g18", {}).get("value") is not None
+    return (has_ounce and has_usd) or (has_usd and has_gold)
+
+
 def build_model(timeout=HTTP_TIMEOUT):
-    """Fetch everything in parallel, assemble the board model. Never raises."""
+    """Fetch everything in parallel, assemble the board model. Never raises.
+
+    Publishes as soon as the core sources are ready (or after FAST_PUBLISH_SEC),
+    cancelling slow stragglers — they are reported as skipped and their last
+    good values survive via merge_model. This is what keeps the board fresh.
+    """
     sources = _sources()
-    deadline = time.time() + max(90.0, REFRESH_SEC * 3.0)
     results = []
-    with ThreadPoolExecutor(max_workers=min(6, len(sources))) as pool:
+    with ThreadPoolExecutor(max_workers=min(8, len(sources))) as pool:
         futs = {pool.submit(_run_source, n, l, u, k, timeout): n for n, l, u, k in sources}
         pending = set(futs)
+        deadline = time.time() + FAST_PUBLISH_SEC
+        min_ready_at = time.time() + MIN_PUBLISH_SEC
         try:
-            for fut in as_completed(futs, timeout=max(0.1, deadline - time.time())):
+            for fut in as_completed(futs, timeout=max(0.05, deadline - time.time())):
                 pending.discard(fut)
                 results.append(fut.result())
-        except Exception:  # noqa: BLE001  (budget exhausted)
-            for fut in pending:
-                fut.cancel()
-                r = {"source": futs[fut], "label": futs[fut], "ok": False,
-                     "ms": None, "value": None, "error": "skipped — budget spent"}
-                results.append(r)
+                if _core_ready(results) and time.time() >= min_ready_at:
+                    break
+        except Exception:  # noqa: BLE001  (fast-publish deadline hit)
+            pass
+        for fut in pending:
+            fut.cancel()
+            results.append(
+                {"source": futs[fut], "label": futs[fut], "ok": False,
+                 "ms": None, "value": None, "error": "skipped — slow (early publish)"}
+            )
 
     by = {r["source"]: r for r in results}
     ts = _now_iso()
@@ -712,6 +746,8 @@ class Refresher:
             except Exception as e:  # noqa: BLE001
                 print(f"[lite] refresh error: {e}")
             dur = time.time() - started
+            # Fixed cadence; a slow cycle gets a short breather (max one interval)
+            # instead of stacking back-to-back 90s cycles.
             wait = (REFRESH_SEC - dur) if dur <= REFRESH_SEC else min(dur, REFRESH_SEC)
             next_at = time.time() + max(0.0, wait)
             cycles += 1
