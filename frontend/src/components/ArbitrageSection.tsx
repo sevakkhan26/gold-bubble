@@ -254,6 +254,17 @@ export function ArbitrageSection({
                 {worthIt
                   ? `بخر از «${buyAt?.label}» و بفروش به «${sellAt?.label}»`
                   : "اختلاف منفی است — الان فرصتی نیست"}
+                {spreadPct != null ? (
+                  <span
+                    className={cn(
+                      "mr-2 t-num",
+                      worthIt ? "text-buy" : "text-sell"
+                    )}
+                  >
+                    {spreadPct >= 0 ? "+" : ""}
+                    {spreadPct.toFixed(2)}٪ اختلاف
+                  </span>
+                ) : null}
               </div>
               <div className="mt-1 text-muted-foreground">
                 هر {unit} {formatToman(buyAt?.sell ?? null)} بخر ·{" "}
@@ -319,7 +330,9 @@ export function ArbitrageSection({
                       {buyAt?.key === s.key ? <span className="mr-1 t-sm">★</span> : null}
                     </td>
                     <td className="t-num py-2 text-left text-muted-foreground">
-                      {own != null ? formatToman(own) : "—"}
+                      {own != null
+                        ? `${formatToman(own)} (${s.buy ? ((own / s.buy) * 100).toFixed(2) : "—"}٪)`
+                        : "—"}
                     </td>
                   </tr>
                 );
