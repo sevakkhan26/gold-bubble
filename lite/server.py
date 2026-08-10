@@ -34,6 +34,25 @@ PUBLIC = ROOT / "public"
 INDEX = PUBLIC / "index.html"
 DB_PATH = ROOT / "lite.db"
 
+
+def _load_dotenv() -> None:
+    """Read .env next to the project (keys are NOT in git — .env is ignored)."""
+    p = ROOT / ".env"
+    if not p.is_file():
+        return
+    try:
+        for line in p.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    except Exception:  # noqa: BLE001
+        pass
+
+
+_load_dotenv()
+
 PORT = int(os.environ.get("PORT", "8787"))
 REFRESH_SEC = max(15, int(os.environ.get("REFRESH_SEC", "15")))
 HTTP_TIMEOUT = float(os.environ.get("HTTP_TIMEOUT", "12"))
@@ -44,7 +63,7 @@ HISTORY_DAYS = int(os.environ.get("PRICE_HISTORY_DAYS", "14"))
 # (and the board survives short network outages).
 SNAP_PATH = ROOT / "lite_last.json"
 
-VERSION = "2.2.7-lite"
+VERSION = "2.2.8-lite"
 GIT_SHA = os.environ.get("APP_GIT_SHA", "lite")
 BUILD_TIME = "portable"
 
