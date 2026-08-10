@@ -9,3 +9,5 @@ wheelhouse/
 frontend/node_modules/
 frontend/dist/
 portable/ (python embedded runtime + windows wheels)
+lite.db
+lite_last.json
